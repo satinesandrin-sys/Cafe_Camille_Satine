@@ -23,7 +23,7 @@ function(input, output, session) {
          breaks = input$bins,
          col = input$col,
          border = "white",
-         main = paste("Distribution de", input$var),
+         main = paste("Distribution de la variable", input$var),,
          xlab = input$var)
   })
   

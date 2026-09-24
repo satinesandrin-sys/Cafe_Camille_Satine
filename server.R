@@ -11,6 +11,7 @@ library(shiny)
 
 # Define server logic required to draw a histogram
 function(input, output, session) {
+  cafe <- read.csv2('df_arabica_clean.csv', sep=';', header=TRUE)
   output$plot <- renderPlot({
     plot(cars)
   })

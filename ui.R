@@ -18,7 +18,8 @@ fluidPage(
     tabsetPanel(
       tabPanel("Accueil", 
                h3("Bienvenue sur l'onglet Accueil"),
-               p("Ceci est le contenu du premier onglet.")
+               p("Ceci est le contenu du premier onglet."), 
+               "cafe <- read.csv2('df_arabica_clean.csv', sep=';', header=TRUE)"
       ),
       tabPanel("Analyses", 
                h3("Onglet Analyses"),

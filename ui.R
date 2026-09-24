@@ -20,8 +20,8 @@ fluidPage(
                h3("Bienvenue sur l'onglet Accueil"),
                p("Ceci est le contenu du premier onglet.")
       ),
-      tabPanel("Analyse", 
-               h3("Onglet Analyse"),
+      tabPanel("Analyses", 
+               h3("Onglet Analyses"),
                plotOutput("plot")
       ),
       tabPanel("Données", 

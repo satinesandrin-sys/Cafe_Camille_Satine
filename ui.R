@@ -6,33 +6,29 @@
 #
 #    https://shiny.posit.co/
 #
-
-library(shiny)
-
-# Define UI for application that draws a histogram
 fluidPage(
-
-    # Application title
-    titlePanel("Data Café"),
+  titlePanel("Data Café"),
+  
+  tabsetPanel(
+    tabPanel("Accueil",
+             h3("Bienvenue sur l'onglet Accueil"),
+             p("Ceci est le contenu du premier onglet.")
+    ),
     
-    tabsetPanel(
-      tabPanel("Accueil", 
-               h3("Bienvenue sur l'onglet Accueil"),
-               p("Ceci est le contenu du premier onglet."), 
-      ),
-      tabPanel("Analyses", 
-               h3("Onglet Analyses"),
-               plotOutput("plot")
-      ),
-      tabPanel("Données", 
-               h3("Onglet Données"),
-               tableOutput("table")
-
-        )
+    tabPanel("Analyses",
+             sidebarLayout(
+               sidebarPanel(
+                 selectInput("var", "Variable :", choices = vars_num),
+                 sliderInput("bins", "Nombre de classes :", min = 5, max = 50, value = 20),
+                 colourInput("col", "Couleur :", value = "#8B5A2B")
+               ),
+               mainPanel(plotOutput("plot"))
+             )
+    ),
+    
+    tabPanel("Données",
+             h3("Onglet Données"),
+             tableOutput("table")
     )
+  )
 )
-
-
-
-
-

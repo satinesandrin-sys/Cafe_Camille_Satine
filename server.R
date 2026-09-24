@@ -7,17 +7,29 @@
 #    https://shiny.posit.co/
 #
 
-library(shiny)
-
-# Define server logic required to draw a histogram
 function(input, output, session) {
-  cafe <- read.csv2('df_arabica_clean.csv', sep=';', header=TRUE)
+  
+  showModal(modalDialog(
+    title = "Bienvenue sur CaféViz",
+    tags$img(
+      src = "cafe.png",
+      style = "display: block; margin: 0 auto; width: 50%;"
+    ),
+    "Truc à dire sur le projet.",
+    easyClose = TRUE,
+    footer = NULL
+  ))
+  
   output$plot <- renderPlot({
-    plot(cars)
+    hist(cafe[[input$var]],
+         breaks = input$bins,
+         col = input$col,
+         border = "white",
+         main = paste("Distribution de", input$var),
+         xlab = input$var)
   })
   
   output$table <- renderTable({
-    head(cars)
+    head(cafe, 20)
   })
 }
-

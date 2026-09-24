@@ -14,20 +14,25 @@ fluidPage(
 
     # Application title
     titlePanel("Data Café"),
+    
+    tabsetPanel(
+      tabPanel("Accueil", 
+               h3("Bienvenue sur l'onglet Accueil"),
+               p("Ceci est le contenu du premier onglet.")
+      ),
+      tabPanel("Analyse", 
+               h3("Onglet Analyse"),
+               plotOutput("plot")
+      ),
+      tabPanel("Données", 
+               h3("Onglet Données"),
+               tableOutput("table")
 
-    # Sidebar with a slider input for number of bins
-    sidebarLayout(
-        sidebarPanel(
-            sliderInput("bins",
-                        "Number of bins:",
-                        min = 1,
-                        max = 50,
-                        value = 30)
-        ),
-
-        # Show a plot of the generated distribution
-        mainPanel(
-            plotOutput("distPlot")
         )
     )
 )
+
+
+
+
+

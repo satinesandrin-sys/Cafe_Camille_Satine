@@ -11,11 +11,9 @@ function(input, output, session) {
   
   showModal(modalDialog(
     title = "Bienvenue sur CaféViz",
-    tags$img(
-      src = "cafe.png",
-      style = "display: block; margin: 0 auto; width: 50%;"
-    ),
-    "Truc à dire sur le projet.",
+    tags$img(src = "cafe.jpg",
+             style = "display: block; margin: 0 auto; width: 50%;"),
+    p("Truc à dire sur le projet.", style = "text-align: center; margin-top: 15px;"),
     easyClose = TRUE,
     footer = NULL
   ))
@@ -30,6 +28,9 @@ function(input, output, session) {
   })
   
   output$table <- renderTable({
-    head(cafe, 20)
-  })
+    d <- cafe
+    if (input$pays != "Tous") d <- d[d$Country.of.Origin == input$pays, ]
+    head(d[, c("Country.of.Origin", "Region", "Variety", "Processing.Method",
+               "Aroma", "Flavor", "Acidity", "Total.Cup.Points")], 50)
+  }, striped = TRUE, digits = 2)
 }

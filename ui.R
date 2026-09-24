@@ -11,7 +11,7 @@ fluidPage(
   
   tabsetPanel(
     tabPanel("Accueil",
-             h3("Bienvenue sur l'onglet Accueil"),
+             h3("Bienvenue"),
              p("Ceci est le contenu du premier onglet.")
     ),
     
@@ -27,8 +27,10 @@ fluidPage(
     ),
     
     tabPanel("Données",
-             h3("Onglet Données"),
-             tableOutput("table")
+             selectInput("pays", "Pays :",
+                         choices = c("Tous", sort(unique(cafe$Country.of.Origin)))),
+             div(style = "overflow-x: auto; max-height: 500px; overflow-y: auto;",
+                 tableOutput("table"))
     )
   )
 )

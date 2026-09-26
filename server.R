@@ -31,7 +31,10 @@ function(input, output, session) {
   })
   
   output$table <- renderTable({
-    head(cafe_filtre()[, c("Country.of.Origin", "Region_clean", "Variety_clean", "Processing_clean",
-                           "Altitude_num", "Aroma", "Flavor", "Acidity", "Total.Cup.Points")], 50)
+    d <- cafe_filtre()[, c("Country.of.Origin", "Region_clean", "Variety_clean", "Processing_clean",
+                           "Altitude_num", "Aroma", "Flavor", "Acidity", "Total.Cup.Points")]
+    names(d) <- c("Pays d'origine", "Région", "Variété", "Méthode de traitement",
+                  "Altitude", "Arômes", "Saveurs", "Acidité", "Total des points")
+    head(d, 50)
   }, striped = TRUE, digits = 2)
 }

@@ -24,11 +24,13 @@ fluidPage(
                  selectInput("pays", "Pays :",
                              choices = c("Tous", sort(unique(cafe$Country.of.Origin)))),
                  selectInput("variete", "Variété :",
-                             choices = c("Tous", sort(unique(cafe$Variety)))),
+                             choices = c("Tous", choix_variete)),
                  selectInput("methode", "Méthode de traitement :",
-                             choices = c("Tous", sort(unique(cafe$Processing.Method)))),
+                             choices = c("Tous", choix_methode)),
                  selectInput("altitude_num", "Altitude :",
-                             choices = c("Tous", sort(unique(cafe$Altitude))))
+                             choices = c("Tous", sort(unique(cafe$Altitude)))),
+                 selectInput("annee", "Année de récolte :",
+                             choices = c("Tous", choix_annee)),
                ),
                mainPanel(
                  div(style = "overflow-x: auto; max-height: 500px; overflow-y: auto;",

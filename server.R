@@ -18,17 +18,18 @@ function(input, output, session) {
          xlab = input$var)
   })
   
+  cafe_filtre <- reactive({
+    d <- cafe
+    if (input$pays != "Tous")        d <- d[d$Country.of.Origin == input$pays, ]
+    if (input$variete != "Tous")     d <- d[d$Variety_clean == input$variete, ]
+    if (input$methode != "Tous")     d <- d[d$Processing_clean == input$methode, ]
+    if (input$altitude_num != "Tous") d <- d[d$Altitude == input$altitude_num, ]
+    if (input$annee != "Tous")       d <- d[d$Harvest_year_clean == input$annee, ]
+    d
+  })
+  
   output$table <- renderTable({
-    cafe_filtre <- reactive({
-      d <- cafe
-      if (input$pays != "Tous")      d <- d[d$Country.of.Origin == input$pays, ]
-      if (input$variete != "Tous")   d <- d[d$Variety == input$variete, ]
-      if (input$methode != "Tous")   d <- d[d$Processing.Method == input$methode, ]
-      if (input$altitude_num != "Tous") d <- d[d$Altitude == input$altitude_num, ]
-      d
-    })
-    
-    head(cafe_filtre()[, c("Country.of.Origin", "Region", "Variety", "Processing.Method",
-               "Aroma", "Flavor", "Acidity", "Total.Cup.Points")], 50)
+    head(cafe_filtre()[, c("Country.of.Origin", "Region", "Variety_clean", "Processing_clean",
+                           "Aroma", "Flavor", "Acidity", "Total.Cup.Points")], 50)
   }, striped = TRUE, digits = 2)
 }

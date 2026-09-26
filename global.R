@@ -8,12 +8,6 @@ cafe <- read.csv("df_arabica_clean.csv", header = TRUE, fileEncoding = "UTF-8")
 
 #Variety : on distingue variété unique vs mélange, on harmonise la casse
 # Nombre de variétés listées dans le champ (en comptant les séparateurs , - + &)
-n_varietes <- function(x) {
-  x <- gsub("\\s+", " ", trimws(x))
-  if (x == "" || tolower(x) %in% c("unknow", "unknown")) return(0)
-  length(strsplit(x, "[,\\-\\+&]")[[1]])
-}
-
 cafe$Variety_clean <- sapply(cafe$Variety, function(x) {
   x <- trimws(x)
   if (x == "" || tolower(x) %in% c("unknow", "unknown")) return(NA_character_)
@@ -35,20 +29,19 @@ cafe$Processing_clean <- sapply(cafe$Processing.Method, function(x) {
   x <- trimws(x)
   if (x == "") return(NA_character_)
   x_low <- tolower(x)
-  if (grepl(",", x)) return("Blendn / Other")
+  if (grepl(",", x)) return("Mélange / Autre")
   if (x_low %in% c("semi washed", "semi-lavado")) return("Semi Washed")
-  if (x_low %in% c("washed / wet")) return("Washed / Wet")
-  if (x_low %in% c("natural / dry")) return("Natural / Dry")
-  if (x_low %in% c("wet hulling")) return("Wet Hulling")
-  if (x_low %in% c("double anaerobic washed")) return("Double Anaerobic Washed")
-  if (x_low %in% c("anaerobico 1000h")) return("Anaerobic (other)")
-  if (x_low %in% c("double carbonic maceration / natural")) return("Carbonic Maceration / Natural")
-  if (x_low %in% c("pulped natural / honey")) return("Pulped Natural / Honey")
-  x 
+  if (x_low == "washed / wet") return("Washed / Wet")
+  if (x_low == "natural / dry") return("Natural / Dry")
+  if (x_low == "wet hulling") return("Wet Hulling")
+  if (x_low == "double anaerobic washed") return("Double Anaerobic Washed")
+  if (x_low == "anaerobico 1000h") return("Anaerobic (autre)")
+  if (x_low == "double carbonic maceration / natural") return("Carbonic Maceration / Natural")
+  if (x_low == "pulped natural / honey") return("Pulped Natural / Honey")
+  x
 })
 
 ##Color : fusion des variantes d'orthographe
-
 cafe$Color_clean <- sapply(cafe$Color, function(x) {
   x <- trimws(tolower(x))
   if (x == "") return(NA_character_)
@@ -67,17 +60,32 @@ cafe$Harvest_year_clean <- as.integer(sub(" */.*", "", trimws(cafe$Harvest.Year)
 
 ##Altitude numérique 
 extraire_altitude <- function(x) {
-  x <- gsub(" ", "", x)
+  x <- trimws(x)
+  x <- gsub("~", "-", x)
+  x <- gsub("(?i)\\s*A\\s*", "-", x, perl = TRUE)
+  x <- gsub("\\s+", "", x)
   bornes <- strsplit(x, "-")
   sapply(bornes, function(b) {
     b <- suppressWarnings(as.numeric(b))
-    if (all(is.na(b))) NA else mean(b, na.rm = TRUE)
+    if (all(is.na(b))) return(NA_real_)
+    val <- mean(b, na.rm = TRUE)
+    if (val > 3000) return(NA_real_)
+    val
   })
 }
 cafe$Altitude_num <- extraire_altitude(cafe$Altitude)
 
 ##Status : colonne à valeur unique, inutile
 cafe$Status <- NULL
+
+##Region : garde le 1er élément, casse harmonisée (sauf caractères chinois)
+cafe$Region_clean <- sapply(cafe$Region, function(x) {
+  x <- trimws(x)
+  if (x == "") return(NA_character_)
+  x <- trimws(strsplit(x, ",")[[1]][1])
+  if (grepl("[\u4e00-\u9fff]", x)) return(x)
+  tools::toTitleCase(tolower(x))
+})
 
 #Listes de choix propres pour les filtres 
 choix_variete  <- sort(unique(na.omit(cafe$Variety_clean)))

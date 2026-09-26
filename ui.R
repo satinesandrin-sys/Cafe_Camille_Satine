@@ -27,10 +27,12 @@ fluidPage(
                              choices = c("Tous", choix_variete)),
                  selectInput("methode", "Méthode de traitement :",
                              choices = c("Tous", choix_methode)),
-                 selectInput("altitude_num", "Altitude :",
-                             choices = c("Tous", sort(unique(cafe$Altitude)))),
+                 sliderInput("altitude_range", "Altitude (m) :",
+                             min = floor(min(cafe$Altitude_num, na.rm = TRUE)),
+                             max = ceiling(max(cafe$Altitude_num, na.rm = TRUE)),
+                             value = range(cafe$Altitude_num, na.rm = TRUE)),
                  selectInput("annee", "Année de récolte :",
-                             choices = c("Tous", choix_annee)),
+                             choices = c("Tous", choix_annee))
                ),
                mainPanel(
                  div(style = "overflow-x: auto; max-height: 500px; overflow-y: auto;",

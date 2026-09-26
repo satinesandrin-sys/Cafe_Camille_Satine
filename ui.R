@@ -1,11 +1,3 @@
-#
-# This is the user-interface definition of a Shiny web application. You can
-# run the application by clicking 'Run App' above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    https://shiny.posit.co/
-#
 fluidPage(
   titlePanel("Data Café"),
   
@@ -26,11 +18,23 @@ fluidPage(
              )
     ),
     
-    tabPanel("Données",
-             selectInput("pays", "Pays :",
-                         choices = c("Tous", sort(unique(cafe$Country.of.Origin)))),
-             div(style = "overflow-x: auto; max-height: 500px; overflow-y: auto;",
-                 tableOutput("table"))
+    tabPanel("Explorer les cafés",
+             sidebarLayout(
+               sidebarPanel(
+                 selectInput("pays", "Pays :",
+                             choices = c("Tous", sort(unique(cafe$Country.of.Origin)))),
+                 selectInput("variete", "Variété :",
+                             choices = c("Tous", sort(unique(cafe$Variety)))),
+                 selectInput("methode", "Méthode de traitement :",
+                             choices = c("Tous", sort(unique(cafe$Processing.Method)))),
+                 selectInput("altitude_num", "Altitude :",
+                             choices = c("Tous", sort(unique(cafe$Altitude))))
+               ),
+               mainPanel(
+                 div(style = "overflow-x: auto; max-height: 500px; overflow-y: auto;",
+                     tableOutput("table"))
+               )
+             )
     )
   )
 )

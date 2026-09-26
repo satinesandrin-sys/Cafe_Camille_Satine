@@ -1,12 +1,3 @@
-#
-# This is the server logic of a Shiny web application. You can run the
-# application by clicking 'Run App' above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    https://shiny.posit.co/
-#
-
 function(input, output, session) {
   
   showModal(modalDialog(
@@ -23,14 +14,21 @@ function(input, output, session) {
          breaks = input$bins,
          col = input$col,
          border = "white",
-         main = paste("Distribution de la variable", input$var),,
+         main = paste("Distribution de la variable", input$var),
          xlab = input$var)
   })
   
   output$table <- renderTable({
-    d <- cafe
-    if (input$pays != "Tous") d <- d[d$Country.of.Origin == input$pays, ]
-    head(d[, c("Country.of.Origin", "Region", "Variety", "Processing.Method",
+    cafe_filtre <- reactive({
+      d <- cafe
+      if (input$pays != "Tous")      d <- d[d$Country.of.Origin == input$pays, ]
+      if (input$variete != "Tous")   d <- d[d$Variety == input$variete, ]
+      if (input$methode != "Tous")   d <- d[d$Processing.Method == input$methode, ]
+      if (input$altitude_num != "Tous") d <- d[d$Altitude == input$altitude_num, ]
+      d
+    })
+    
+    head(cafe_filtre()[, c("Country.of.Origin", "Region", "Variety", "Processing.Method",
                "Aroma", "Flavor", "Acidity", "Total.Cup.Points")], 50)
   }, striped = TRUE, digits = 2)
 }

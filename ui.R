@@ -32,7 +32,7 @@ fluidPage(
                              max = ceiling(max(cafe$Altitude_num, na.rm = TRUE)),
                              value = range(cafe$Altitude_num, na.rm = TRUE)),
                  selectInput("annee", "Année de récolte :",
-                             choices = c("Tous", choix_annee))
+                             choices = c("Tous", choix_annee)),
                ),
                mainPanel(
                  div(style = "overflow-x: auto; max-height: 500px; overflow-y: auto;",

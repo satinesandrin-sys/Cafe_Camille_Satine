@@ -192,8 +192,12 @@ vars_num <- names(cafe)[sapply(cafe, is.numeric)]
 # Bornes de l'altitude : sert à savoir si le slider est "tout sélectionné"
 alt_bornes <- range(cafe$Altitude_num, na.rm = TRUE)
 
+
 # Domaine fixe de la palette : étendue des scores moyens par pays sur tout le
 # jeu de données. Les couleurs restent stables quand les filtres changent, et
 # la palette ne casse pas quand il ne reste qu'un seul pays.
 domaine_score <- range(tapply(cafe$Total.Cup.Points, cafe$Country.of.Origin,
                               mean, na.rm = TRUE))
+## Bornes du curseur Total Cup Points
+cup_min <- floor(min(cafe$Total.Cup.Points, na.rm = TRUE))
+cup_max <- ceiling(max(cafe$Total.Cup.Points, na.rm = TRUE))

@@ -30,41 +30,6 @@ function(input, output, session) {
     d
   })
   
-  #Carte du monde 
-  map_summary <- reactive({
-    cafe_filtre() %>%
-      group_by(Country) %>%
-      summarise(
-        n = n(),
-        score_moyen = mean(`Total.Cup.Points`, na.rm = TRUE),
-        .groups = "drop"
-      ) %>%
-      left_join(country_centroids, by = "Country") %>%
-      mutate(Country_label = clean_country_name(Country))
-  })
-  output$world_map <- renderLeaflet({
-    df <- map_summary()
-    
-    pal <- colorNumeric("YlOrBr", domain = df$score_moyen)
-    
-    leaflet(df) %>%
-      addProviderTiles(providers$Esri.WorldGrayCanvas) %>%
-      setView(lng = 10, lat = 15, zoom = 2) %>%
-      addCircleMarkers(
-        lng = ~lng, lat = ~lat,
-        layerId = ~Country,
-        radius = ~pmax(6, sqrt(n) * 4),
-        color = ~pal(score_moyen),
-        fillOpacity = 0.8, stroke = TRUE, weight = 1,
-        label = ~paste0(Country_label, " — ", n, " cafes, score moyen ",
-                        round(score_moyen, 2)),
-        popup = ~paste0("<b>", Country_label, "</b><br/>",
-                        "Nombre de cafes : ", n, "<br/>",
-                        "Score moyen : ", round(score_moyen, 2))
-      ) %>%
-      addLegend("bottomright", pal = pal, values = ~score_moyen,
-                title = "Score moyen")
-  })
   #Table des cafés
   output$table <- renderTable({
     d <- cafe_filtre()[, c("Country.of.Origin", "Region_clean", "Variety_clean", "Processing_clean",
@@ -73,4 +38,5 @@ function(input, output, session) {
                   "Altitude", "Arômes", "Saveurs", "Acidité", "Total des points")
     head(d, 50)
   }, striped = TRUE, digits = 2)
+  
 }

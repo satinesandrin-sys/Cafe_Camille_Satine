@@ -1,7 +1,13 @@
 library(shiny)
 library(colourpicker)
 library(leaflet)
-
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(stringr)
+library(plotly)
+library(DT)
+library(scales)
 
 cafe <- read.csv("df_arabica_clean.csv", header = TRUE, fileEncoding = "UTF-8")
 

@@ -35,7 +35,6 @@ fluidPage(
                              choices = c("Tous", choix_annee))
                ),
                mainPanel(
-                 leafletOutput(outputId = "world_map", height = "600px"),
                  div(style = "overflow-x: auto; max-height: 500px; overflow-y: auto;",
                      tableOutput("table"))
                )

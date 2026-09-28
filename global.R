@@ -1,13 +1,15 @@
 library(shiny)
 library(colourpicker)
+library(leaflet)
+
 
 cafe <- read.csv("df_arabica_clean.csv", header = TRUE, fileEncoding = "UTF-8")
 
 
 # NETTOYAGE
 
-#Variety : on distingue variété unique vs mélange, on harmonise la casse
-# Nombre de variétés listées dans le champ (en comptant les séparateurs , - + &)
+##Variety : on distingue variété unique vs mélange, on harmonise la casse
+## Nombre de variétés listées dans le champ (en comptant les séparateurs , - + &)
 cafe$Variety_clean <- sapply(cafe$Variety, function(x) {
   x <- trimws(x)
   if (x == "" || tolower(x) %in% c("unknow", "unknown")) return(NA_character_)
@@ -24,7 +26,7 @@ cafe$Variety_clean <- sapply(cafe$Variety, function(x) {
   paste(mots, collapse = " ")
 })
 
-#Processing Method : fusion des doublons, mélanges regroupés
+##Processing Method : fusion des doublons, mélanges regroupés
 cafe$Processing_clean <- sapply(cafe$Processing.Method, function(x) {
   x <- trimws(x)
   if (x == "") return(NA_character_)
@@ -87,7 +89,9 @@ cafe$Region_clean <- sapply(cafe$Region, function(x) {
   tools::toTitleCase(tolower(x))
 })
 
-#Listes de choix propres pour les filtres 
+#Interface 
+
+##Listes de choix propres pour les filtres 
 choix_variete  <- sort(unique(na.omit(cafe$Variety_clean)))
 choix_methode  <- sort(unique(na.omit(cafe$Processing_clean)))
 choix_couleur  <- sort(unique(na.omit(cafe$Color_clean)))

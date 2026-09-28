@@ -7,17 +7,7 @@ fluidPage(
              p("Ceci est le contenu du premier onglet.")
     ),
     
-    tabPanel("Analyses",
-             sidebarLayout(
-               sidebarPanel(
-                 selectInput("var", "Variable :", choices = vars_num),
-                 sliderInput("bins", "Nombre de classes :", min = 5, max = 50, value = 20),
-                 colourInput("col", "Couleur :", value = "#8B5A2B")
-               ),
-               mainPanel(plotOutput("plot"))
-             )
-    ),
-    
+    # Ordre des onglets : exploration puis analyse
     tabPanel("Explorer les cafés",
              sidebarLayout(
                sidebarPanel(
@@ -35,9 +25,22 @@ fluidPage(
                              choices = c("Tous", choix_annee)),
                ),
                mainPanel(
+                 # Carte : taille des bulles = nombre de cafés, couleur = score moyen
+                 leafletOutput(outputId = "world_map", height = "600px"),
                  div(style = "overflow-x: auto; max-height: 500px; overflow-y: auto;",
                      tableOutput("table"))
                )
+             )
+    ),
+    
+    tabPanel("Analyses",
+             sidebarLayout(
+               sidebarPanel(
+                 selectInput("var", "Variable :", choices = vars_num),
+                 sliderInput("bins", "Nombre de classes :", min = 5, max = 50, value = 20),
+                 colourInput("col", "Couleur :", value = "#8B5A2B")
+               ),
+               mainPanel(plotOutput("plot"))
              )
     )
   )

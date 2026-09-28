@@ -32,7 +32,7 @@ function(input, output, session) {
   })
   
   # ---- Onglet Explorer : carte ----------------------------------------------
-  # Résumé par pays : nombre de cafés et score moyen
+  
   map_summary <- reactive({
     cafe_filtre() %>%
       filter(!is.na(Country.of.Origin)) %>%
@@ -42,51 +42,104 @@ function(input, output, session) {
         score_moyen = mean(`Total.Cup.Points`, na.rm = TRUE),
         .groups = "drop"
       ) %>%
-      # country_centroids a une colonne "Country" : d'où le by = c(... = ...).
-      # inner_join écarte les pays sans coordonnées (lat/lng = NA feraient
-      # planter la carte avec l'erreur "[object Object]").
-      inner_join(country_centroids, by = c("Country.of.Origin" = "Country")) %>%
-      mutate(Country_label = clean_country_name(Country.of.Origin)) %>%
+      inner_join(
+        country_centroids,
+        by = c("Country.of.Origin" = "Country")
+      ) %>%
+      mutate(
+        Country_label = clean_country_name(Country.of.Origin)
+      ) %>%
       as.data.frame()
   })
   
-  # Fond de carte dessiné UNE seule fois (OpenStreetMap : gratuit, sans clé API)
-  output$world_map <- renderLeaflet({
-    leaflet() %>%
-      addTiles() %>%
-      setView(lng = 10, lat = 15, zoom = 2)
+  # ---- Onglet Explorer : carte ----------------------------------------------
+  
+  map_summary <- reactive({
+    
+    cafe_filtre() %>%
+      filter(!is.na(Country.of.Origin)) %>%
+      group_by(Country.of.Origin) %>%
+      summarise(
+        n = n(),
+        score_moyen = mean(`Total.Cup.Points`, na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      inner_join(
+        country_centroids,
+        by = c("Country.of.Origin" = "Country")
+      ) %>%
+      mutate(
+        Country_label = clean_country_name(Country.of.Origin)
+      ) %>%
+      as.data.frame()
   })
   
-  # Les bulles sont mises à jour à chaque changement de filtre, sans
-  # reconstruire la carte (le zoom de l'utilisateur est conservé)
-  observe({
+
+  output$world_map <- renderLeaflet({
+    
     d <- map_summary()
     
-    proxy <- leafletProxy("world_map") %>%
-      clearMarkers() %>%
-      clearControls()
+    # Palette
+    pal_map <- colorNumeric(
+      palette = "YlOrBr",
+      domain = range(d$score_moyen, na.rm = TRUE)
+    )
     
-    if (nrow(d) == 0) return()   # aucun café avec ces filtres
-    
-    pal <- colorNumeric("YlOrBr", domain = domaine_score)
-    
-    proxy %>%
+    leaflet() %>%
+      
+      # Fond OpenStreetMap
+      addTiles() %>%
+      
+      # Position initiale
+      setView(
+        lng = 10,
+        lat = 15,
+        zoom = 2
+      ) %>%
+      
+      # Cercles
       addCircleMarkers(
         data = d,
-        lng = ~lng, lat = ~lat,
-        layerId = ~Country.of.Origin,
+        lng = ~lng,
+        lat = ~lat,
+        
+        # Taille proportionnelle au nombre de cafés
         radius = ~pmax(6, sqrt(n) * 4),
-        color = ~pal(score_moyen),
-        fillOpacity = 0.8, stroke = TRUE, weight = 1,
-        label = ~paste0(Country_label, " — ", n, " cafés, score moyen ",
-                        round(score_moyen, 2)),
-        popup = ~paste0("<b>", Country_label, "</b><br/>",
-                        "Nombre de cafés : ", n, "<br/>",
-                        "Score moyen : ", round(score_moyen, 2))
+        
+        # Couleur selon le score moyen
+        color = ~pal_map(score_moyen),
+        fillColor = ~pal_map(score_moyen),
+        fillOpacity = 0.8,
+        
+        stroke = TRUE,
+        weight = 1,
+        
+        # Étiquette au survol
+        label = ~paste0(
+          Country_label,
+          " — ",
+          n,
+          " cafés, score moyen ",
+          round(score_moyen, 2)
+        ),
+        
+        # Popup au clic
+        popup = ~paste0(
+          "<b>", Country_label, "</b><br/>",
+          "Nombre de cafés : ", n, "<br/>",
+          "Score moyen : ", round(score_moyen, 2)
+        )
       ) %>%
-      addLegend("bottomright", pal = pal, values = domaine_score,
-                title = "Score moyen")
+      
+      # Légende
+      addLegend(
+        "bottomright",
+        pal = pal_map,
+        values = d$score_moyen,
+        title = "Score moyen"
+      )
   })
+  
   
   # ---- Onglet Explorer : table des cafés ------------------------------------
   output$table <- renderTable({

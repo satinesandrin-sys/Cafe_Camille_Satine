@@ -60,7 +60,10 @@ fluidPage(
                  ),
                  
                  # Carte : taille des bulles = nombre de cafés, couleur = score moyen
+                 
                  leafletOutput("world_map", height = "500px"),
+                 p("Taille des bulles = nombre de cafes ; couleur = score moyen. ",
+                   "Cliquez sur un pays pour filtrer le reste de l'application."),
                  br(),
                  div(style = "overflow-x: auto; max-height: 500px; overflow-y: auto;",
                      tableOutput("table"))

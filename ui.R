@@ -66,7 +66,9 @@ fluidPage(
                    "Cliquez sur un pays pour filtrer le reste de l'application."),
                  br(),
                  div(style = "overflow-x: auto; max-height: 500px; overflow-y: auto;",
-                     tableOutput("table"))
+                     tableOutput("table")),
+                 DTOutput("coffee_table")
+                 
                )
              )
     ),

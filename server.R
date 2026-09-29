@@ -143,6 +143,41 @@ function(input, output, session) {
     head(d, 50)
   }, striped = TRUE, digits = 2)
   
+  output$coffee_table <- renderDT({
+    cafe_filtre() %>%
+      select(
+        Country_Of_Origin,
+        Region_clean,
+        Variety_clean,
+        Processing_clean,
+        Altitude_num,
+        Total.Cup.Points
+      ) %>%
+      datatable()
+  })
+  
+  output$score_plot <- renderPlot({
+    ggplot(
+      cafe_filtre(),
+      aes(x = Total.Cup.Points)
+    ) +
+      
+      geom_histogram(
+        bins = 20,
+        fill = "steelblue",
+        color = "white"
+      ) +
+      
+      labs(
+        title = "Distribution des scores",
+        x = "Total Cup Points",
+        y = "Nombre de cafés"
+      ) +
+      
+      theme_minimal()
+  })
+  
+  
   # ---- Onglet Analyses : histogramme ----------------------------------------
   output$plot <- renderPlot({
     hist(cafe[[input$var]],
@@ -151,5 +186,6 @@ function(input, output, session) {
          border = "white",
          main = paste("Distribution de la variable", input$var),
          xlab = input$var)
+    
   })
 }

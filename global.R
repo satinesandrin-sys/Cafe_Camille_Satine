@@ -203,3 +203,92 @@ domaine_score <- range(tapply(cafe$Total.Cup.Points, cafe$Country.of.Origin,
 ## Bornes du curseur Total Cup Points
 cup_min <- floor(min(cafe$Total.Cup.Points, na.rm = TRUE))
 cup_max <- ceiling(max(cafe$Total.Cup.Points, na.rm = TRUE))
+
+
+# ==============================================================================
+# Onglet "Trouve ton café" : ACP sur le profil sensoriel + altitude/humidité
+# ==============================================================================
+
+cafe$.id <- seq_len(nrow(cafe))
+choix_pays <- sort(unique(na.omit(cafe$Country.of.Origin)))
+
+## Variables du "profil" utilisées pour la similarité.
+## Remarque : contrairement à l'onglet Classification, utiliser Aroma/Flavor/...
+## ici n'est pas une fuite de données : on ne prédit pas Total Cup Points,
+## on cherche des cafés au goût proche de ce que l'utilisateur décrit.
+vars_profil <- c("Aroma", "Flavor", "Aftertaste", "Acidity", "Body", "Balance",
+                 "Altitude_num", "Moisture.Percentage")
+
+profil_num <- cafe %>% select(all_of(vars_profil))
+lignes_ok_profil <- complete.cases(profil_num)
+pca_profil <- prcomp(profil_num[lignes_ok_profil, ], center = TRUE, scale. = TRUE)
+ids_pca <- cafe$.id[lignes_ok_profil]
+
+var_expliquee <- cumsum(pca_profil$sdev^2) / sum(pca_profil$sdev^2)
+k_composantes <- min(which(var_expliquee >= 0.85))
+
+## Dictionnaire de mots-clés en français -> effet sur le profil (en écarts-types)
+descripteurs_profil <- list(
+  "Fruité"            = c(Flavor = 1, Acidity = 0.6),
+  "Floral"            = c(Aroma = 1),
+  "Chocolaté / Cacao" = c(Body = 0.7, Balance = 0.6),
+  "Corsé / Intense"   = c(Body = 1),
+  "Doux / Léger"      = c(Balance = 0.7, Acidity = -0.6, Body = -0.5),
+  "Acidulé / Vif"     = c(Acidity = 1),
+  "Équilibré"         = c(Balance = 1),
+  "Long en bouche"    = c(Aftertaste = 1),
+  "Haute altitude"    = c(Altitude_num = 1),
+  "Faible altitude"   = c(Altitude_num = -1)
+)
+
+## Synonymes reconnus dans le texte libre pour chaque descripteur
+synonymes_descripteurs <- list(
+  "Fruité"            = c("fruite", "fruits", "fruit"),
+  "Floral"             = c("floral", "fleur", "fleurs", "jasmin"),
+  "Chocolaté / Cacao" = c("chocolat", "cacao"),
+  "Corsé / Intense"   = c("corse", "intense", "puissant", "fort", "costaud"),
+  "Doux / Léger"      = c("doux", "douce", "leger", "legere", "delicat", "subtil"),
+  "Acidulé / Vif"     = c("acide", "acidule", "vif", "vive"),
+  "Équilibré"         = c("equilibre", "equilibree"),
+  "Long en bouche"    = c("persistant", "longueur"),
+  "Haute altitude"    = c("haute altitude", "altitude elevee", "montagne"),
+  "Faible altitude"   = c("basse altitude", "plaine")
+)
+
+## Alias français pour les pays du jeu de données (pour reconnaître "colombie", "kenyan", etc.)
+alias_pays <- list(
+  "Colombia" = c("colombie", "colombien"), "Taiwan" = c("taiwan", "taiwanais"),
+  "Laos" = c("laos"), "Costa Rica" = c("costa rica", "costaricain"),
+  "Guatemala" = c("guatemala", "guatemalteque"),
+  "Tanzania, United Republic Of" = c("tanzanie", "tanzanien"),
+  "Ethiopia" = c("ethiopie", "ethiopien"), "Thailand" = c("thailande", "thailandais"),
+  "Brazil" = c("bresil", "bresilien"), "United States (Hawaii)" = c("hawaii", "hawaien"),
+  "Kenya" = c("kenya", "kenyan"), "Uganda" = c("ouganda", "ougandais"),
+  "Indonesia" = c("indonesie", "indonesien"), "Peru" = c("perou", "peruvien"),
+  "Panama" = c("panama"), "Nicaragua" = c("nicaragua"), "Vietnam" = c("vietnam"),
+  "Honduras" = c("honduras"), "El Salvador" = c("salvador"),
+  "Madagascar" = c("madagascar"), "Mexico" = c("mexique", "mexicain"),
+  "Myanmar" = c("myanmar", "birmanie")
+)
+
+## Synonymes pour la méthode de traitement
+alias_methode <- list(
+  "Washed / Wet" = c("lave", "washed"), "Natural / Dry" = c("naturel", "natural"),
+  "Semi Washed" = c("semi lave", "semi washed"),
+  "Pulped Natural / Honey" = c("honey", "miel")
+)
+
+## Normalise un texte : minuscules, accents retirés
+normaliser_texte <- function(x) {
+  x <- tolower(x)
+  iconv(x, from = "UTF-8", to = "ASCII//TRANSLIT")
+}
+
+## Exemples de phrases proposées à l'utilisateur (autocomplétion)
+exemples_recherche <- c(
+  "Un café fruité et léger, pas trop acide",
+  "Un café corsé et chocolaté, cultivé en altitude",
+  "Un café doux et équilibré de Colombie",
+  "Un café floral et acidulé, lavé",
+  "Un café puissant et long en bouche"
+)

@@ -169,14 +169,31 @@ fluidPage(
              )
     ),
     tabPanel(tagList(icon("chart-column"), "Analyses"),
-             sidebarLayout(
-               sidebarPanel(
-                 class = "sidebar-panel-card",
-                 selectInput("var_analyses", "Variable :", choices = vars_num),
-                 sliderInput("bins_analyses", "Nombre de classes :", min = 5, max = 50, value = 20),
-                 colourInput("col_analyses", "Couleur :", value = "#8B5A2B")
+             tabsetPanel(
+               tabPanel("Régression",
+                        sidebarLayout(
+                          sidebarPanel(
+                            class = "sidebar-panel-card",
+                            helpText("La qualité du café (Total Cup Points) s'explique-t-elle par l'altitude de culture ?"),
+                            checkboxInput("reg_par_variete", "Distinguer par variété (couleur)", value = FALSE)
+                          ),
+                          mainPanel(
+                            plotOutput("reg_plot", height = "420px"),
+                            br(),
+                            h4("Résumé du modèle"),
+                            verbatimTextOutput("reg_summary")
+                          )
+                        )
                ),
-               mainPanel(plotOutput("plot"))
+               tabPanel("Classification premium",
+                        p("À venir.")
+               ),
+               tabPanel("Random Forest",
+                        p("À venir.")
+               ),
+               tabPanel("ACP / Clustering",
+                        p("À venir.")
+               )
              )
     ),
     tabPanel(tagList(icon("chart-column"), "Prédictions"),
@@ -190,15 +207,18 @@ fluidPage(
                mainPanel(plotOutput("plot_predictions"))
              )
     ),
-    tabPanel(tagList(icon("chart-column"), "LLM"),
+    tabPanel(tagList(icon("magnifying-glass"), "Trouve ton café"),
              sidebarLayout(
                sidebarPanel(
                  class = "sidebar-panel-card",
-                 selectInput("var_llm", "Variable :", choices = vars_num),
-                 sliderInput("bins_llm", "Nombre de classes :", min = 5, max = 50, value = 20),
-                 colourInput("col_llm", "Couleur :", value = "#8B5A2B")
-               ),
-               mainPanel(plotOutput("plot_llm"))
+                 helpText("Décris en une phrase le café que tu recherches."),
+                 tags$datalist(id = "suggestions_recherche",
+                               lapply(exemples_recherche, function(x) tags$option(value = x))),
+                 tags$input(type = "text", id = "recherche_texte", list = "suggestions_recherche",
+                            class = "form-control", placeholder = "Ex : un café fruité et léger, pas trop acide...",
+                            style = "margin-bottom: 12px;"),
+                 actionButton("chercher_cafe", "☕ Trouver mon café", class = "btn-sm w-100")
+               )
              )
     )
   )

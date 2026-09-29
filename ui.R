@@ -164,12 +164,7 @@ fluidPage(
                  DTOutput("coffee_table"),
                  
                  br(),
-                 plotOutput("score_plot", height = "320px"),
-                 
-                 br(),
-                 h4("Détail (aperçu simplifié)"),
-                 div(style = "overflow-x: auto; max-height: 400px; overflow-y: auto;",
-                     tableOutput("table"))
+                 plotOutput("score_plot", height = "320px")
                )
              )
     ),

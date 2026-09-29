@@ -146,7 +146,7 @@ function(input, output, session) {
   output$coffee_table <- renderDT({
     cafe_filtre() %>%
       select(
-        Country_Of_Origin,
+        Country.of.Origin,
         Region_clean,
         Variety_clean,
         Processing_clean,

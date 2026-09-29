@@ -67,8 +67,10 @@ fluidPage(
                  br(),
                  div(style = "overflow-x: auto; max-height: 500px; overflow-y: auto;",
                      tableOutput("table")),
-                 DTOutput("coffee_table")
-                 
+                 h4("Tableau interactif"),
+                 DTOutput("coffee_table"),
+                 br(),
+                 plotOutput("score_plot")
                )
              )
     ),

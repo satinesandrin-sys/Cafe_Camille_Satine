@@ -157,4 +157,33 @@ fluidPage(
                  
                  leafletOutput("world_map", height = "480px"),
                  p(class = "text-muted mt-2",
-                   "Taille des bulles = nombre de cafés ; couleur = score
+                   "Taille des bulles = nombre de cafés ; couleur = score moyen. Cliquez sur un pays pour filtrer."),
+                 
+                 br(),
+                 h4("Tableau interactif"),
+                 DTOutput("coffee_table"),
+                 
+                 br(),
+                 plotOutput("score_plot", height = "320px"),
+                 
+                 br(),
+                 h4("Détail (aperçu simplifié)"),
+                 div(style = "overflow-x: auto; max-height: 400px; overflow-y: auto;",
+                     tableOutput("table"))
+               )
+             )
+    ),
+    
+    tabPanel(tagList(icon("chart-column"), "Analyses"),
+             sidebarLayout(
+               sidebarPanel(
+                 class = "sidebar-panel-card",
+                 selectInput("var", "Variable :", choices = vars_num),
+                 sliderInput("bins", "Nombre de classes :", min = 5, max = 50, value = 20),
+                 colourInput("col", "Couleur :", value = "#8B5A2B")
+               ),
+               mainPanel(plotOutput("plot"))
+             )
+    )
+  )
+)

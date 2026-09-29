@@ -97,7 +97,7 @@ fluidPage(
   ),
   
   div(class = "app-header",
-      h1("Data Café"),
+      h1("Café Viz"),
       p("Exploration et analyse de la qualité des cafés Arabica")
   ),
   
@@ -168,16 +168,37 @@ fluidPage(
                )
              )
     ),
-    
     tabPanel(tagList(icon("chart-column"), "Analyses"),
              sidebarLayout(
                sidebarPanel(
                  class = "sidebar-panel-card",
-                 selectInput("var", "Variable :", choices = vars_num),
-                 sliderInput("bins", "Nombre de classes :", min = 5, max = 50, value = 20),
-                 colourInput("col", "Couleur :", value = "#8B5A2B")
+                 selectInput("var_analyses", "Variable :", choices = vars_num),
+                 sliderInput("bins_analyses", "Nombre de classes :", min = 5, max = 50, value = 20),
+                 colourInput("col_analyses", "Couleur :", value = "#8B5A2B")
                ),
                mainPanel(plotOutput("plot"))
+             )
+    ),
+    tabPanel(tagList(icon("chart-column"), "Prédictions"),
+             sidebarLayout(
+               sidebarPanel(
+                 class = "sidebar-panel-card",
+                 selectInput("var_predictions", "Variable :", choices = vars_num),
+                 sliderInput("bins_predictions", "Nombre de classes :", min = 5, max = 50, value = 20),
+                 colourInput("col_predictions", "Couleur :", value = "#8B5A2B")
+               ),
+               mainPanel(plotOutput("plot_predictions"))
+             )
+    ),
+    tabPanel(tagList(icon("chart-column"), "LLM"),
+             sidebarLayout(
+               sidebarPanel(
+                 class = "sidebar-panel-card",
+                 selectInput("var_llm", "Variable :", choices = vars_num),
+                 sliderInput("bins_llm", "Nombre de classes :", min = 5, max = 50, value = 20),
+                 colourInput("col_llm", "Couleur :", value = "#8B5A2B")
+               ),
+               mainPanel(plotOutput("plot_llm"))
              )
     )
   )

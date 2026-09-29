@@ -47,10 +47,10 @@ fluidPage(
                  fluidRow(
                    column(3, div(class = "value-box",
                                  div(class = "num", textOutput("kpi_n")),
-                                 div(class = "lab", "Cafes selectionnes"))),
+                                 div(class = "lab", "Cafés sélectionnés"))),
                    column(3, div(class = "value-box",
                                  div(class = "num", textOutput("kpi_pays")),
-                                 div(class = "lab", "Pays representes"))),
+                                 div(class = "lab", "Pays représentés"))),
                    column(3, div(class = "value-box",
                                  div(class = "num", textOutput("kpi_score")),
                                  div(class = "lab", "Score moyen"))),

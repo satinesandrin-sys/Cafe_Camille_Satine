@@ -164,7 +164,7 @@ function(input, output, session) {
       
       geom_histogram(
         bins = 20,
-        fill = "steelblue",
+        fill = "#8B5A2B",
         color = "white"
       ) +
       

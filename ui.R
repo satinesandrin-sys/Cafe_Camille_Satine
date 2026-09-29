@@ -97,7 +97,7 @@ fluidPage(
   ),
   
   div(class = "app-header",
-      h1("☕ Data Café"),
+      h1("Data Café"),
       p("Exploration et analyse de la qualité des cafés Arabica")
   ),
   

@@ -15,6 +15,7 @@ library(plotly)
 library(DT)
 library(scales)
 library(ggplot2)
+library(bslib)
 
 # ---- 2. Lecture -------------------------------------------------------------
 cafe <- read.csv("df_arabica_clean.csv", header = TRUE, fileEncoding = "UTF-8")

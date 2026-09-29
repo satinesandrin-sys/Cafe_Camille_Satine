@@ -1,23 +1,117 @@
 fluidPage(
-  tags$head(tags$style(HTML("
-    .value-box { background:#f6efe9; border-left:5px solid #8B5A2B;
-                 border-radius:6px; padding:10px 14px; margin-bottom:15px; }
-    .value-box .num { font-size:26px; font-weight:bold; color:#5a3a1a; }
-    .value-box .lab { font-size:13px; color:#777; }
-  "))),
   
-  titlePanel("Data Café"),
+  theme = bs_theme(
+    version = 5,
+    bg = "#FAF6F1",
+    fg = "#3B2A1A",
+    primary = "#8B5A2B",
+    secondary = "#C9A66B",
+    success = "#6E8B3D",
+    base_font = font_google("Inter"),
+    heading_font = font_google("Poppins"),
+    "font-size-base" = "0.95rem"
+  ),
+  
+  tags$head(
+    tags$style(HTML("
+      /* ---- En-tête ---- */
+      .app-header {
+        background: linear-gradient(135deg, #8B5A2B 0%, #5A3A1A 100%);
+        color: #FFF8F0;
+        padding: 22px 30px;
+        border-radius: 0 0 18px 18px;
+        margin-bottom: 22px;
+        box-shadow: 0 4px 14px rgba(90,58,26,0.25);
+      }
+      .app-header h1 {
+        font-family: 'Poppins', sans-serif;
+        font-weight: 700;
+        margin: 0;
+        font-size: 28px;
+      }
+      .app-header p {
+        margin: 4px 0 0 0;
+        opacity: 0.85;
+        font-size: 14px;
+      }
+
+      /* ---- Onglets ---- */
+      .nav-tabs {
+        border-bottom: none;
+        gap: 6px;
+        margin-bottom: 18px;
+      }
+      .nav-tabs .nav-link {
+        border: none;
+        border-radius: 20px;
+        padding: 8px 18px;
+        color: #6b4a2d;
+        font-weight: 600;
+        background: #F1E4D6;
+      }
+      .nav-tabs .nav-link.active {
+        background: #8B5A2B !important;
+        color: #fff !important;
+      }
+
+      /* ---- Panneaux ---- */
+      .well, .card, .sidebar-panel-card {
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 2px 10px rgba(90,58,26,0.08);
+      }
+      .well { background: #FFFFFF; padding: 20px; }
+
+      /* ---- Cartes KPI ---- */
+      .value-box {
+        background: linear-gradient(160deg, #FFFFFF 0%, #F6EFE9 100%);
+        border: 1px solid #EFE1D2;
+        border-left: 5px solid #8B5A2B;
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 8px rgba(90,58,26,0.07);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .value-box .icon {
+        font-size: 22px;
+        color: #8B5A2B;
+        background: #F1E4D6;
+        border-radius: 50%;
+        width: 42px; height: 42px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+      }
+      .value-box .num { font-size: 24px; font-weight: 700; color: #5a3a1a; line-height: 1.1; }
+      .value-box .lab { font-size: 12.5px; color: #8a7360; }
+
+      /* ---- Boutons ---- */
+      .btn-sm { border-radius: 20px; font-weight: 600; }
+
+      /* ---- Table DT ---- */
+      table.dataTable thead th { color: #5a3a1a; border-bottom: 2px solid #C9A66B !important; }
+      table.dataTable tbody tr:hover { background-color: #FBF3EA !important; }
+    "))
+  ),
+  
+  div(class = "app-header",
+      h1("☕ Data Café"),
+      p("Exploration et analyse de la qualité des cafés Arabica")
+  ),
   
   tabsetPanel(
-    tabPanel("Accueil",
+    tabPanel(tagList(icon("house"), "Accueil"),
              h3("Bienvenue"),
              p("Ceci est le contenu du premier onglet.")
     ),
     
-    tabPanel("Explorer les cafés",
+    tabPanel(tagList(icon("earth-americas"), "Explorer les cafés"),
              sidebarLayout(
                sidebarPanel(
                  width = 3,
+                 class = "sidebar-panel-card",
                  selectInput("pays", "Pays :",
                              choices = c("Tous", sort(unique(na.omit(cafe$Country.of.Origin))))),
                  selectInput("variete", "Variété :",
@@ -30,13 +124,11 @@ fluidPage(
                              value = c(floor(alt_bornes[1]), ceiling(alt_bornes[2]))),
                  selectInput("annee", "Année de récolte :",
                              choices = c("Tous", choix_annee)),
-                 
                  sliderInput("f_cup", "🏆 Total Cup Points",
                              min = cup_min, max = cup_max,
                              value = c(cup_min, cup_max), step = 0.5),
-                 
-                 actionButton("reset_filters", "↺ Reinitialiser les filtres",
-                              class = "btn-sm"),
+                 actionButton("reset_filters", "↺ Réinitialiser les filtres",
+                              class = "btn-sm btn-outline-secondary w-100"),
                  br(), br(),
                  uiOutput("map_selection_info")
                ),
@@ -46,44 +138,23 @@ fluidPage(
                  
                  fluidRow(
                    column(3, div(class = "value-box",
-                                 div(class = "num", textOutput("kpi_n")),
-                                 div(class = "lab", "Cafés sélectionnés"))),
+                                 div(class = "icon", icon("mug-hot")),
+                                 div(div(class = "num", textOutput("kpi_n")),
+                                     div(class = "lab", "Cafés sélectionnés")))),
                    column(3, div(class = "value-box",
-                                 div(class = "num", textOutput("kpi_pays")),
-                                 div(class = "lab", "Pays représentés"))),
+                                 div(class = "icon", icon("earth-americas")),
+                                 div(div(class = "num", textOutput("kpi_pays")),
+                                     div(class = "lab", "Pays représentés")))),
                    column(3, div(class = "value-box",
-                                 div(class = "num", textOutput("kpi_score")),
-                                 div(class = "lab", "Score moyen"))),
+                                 div(class = "icon", icon("star")),
+                                 div(div(class = "num", textOutput("kpi_score")),
+                                     div(class = "lab", "Score moyen")))),
                    column(3, div(class = "value-box",
-                                 div(class = "num", textOutput("kpi_alt")),
-                                 div(class = "lab", "Altitude moyenne (m)")))
+                                 div(class = "icon", icon("mountain")),
+                                 div(div(class = "num", textOutput("kpi_alt")),
+                                     div(class = "lab", "Altitude moyenne (m)"))))
                  ),
                  
-                 # Carte : taille des bulles = nombre de cafés, couleur = score moyen
-                 
-                 leafletOutput("world_map", height = "500px"),
-                 p("Taille des bulles = nombre de cafes ; couleur = score moyen. ",
-                   "Cliquez sur un pays pour filtrer le reste de l'application."),
-                 br(),
-                 div(style = "overflow-x: auto; max-height: 500px; overflow-y: auto;",
-                     tableOutput("table")),
-                 h4("Tableau interactif"),
-                 DTOutput("coffee_table"),
-                 br(),
-                 plotOutput("score_plot")
-               )
-             )
-    ),
-    
-    tabPanel("Analyses",
-             sidebarLayout(
-               sidebarPanel(
-                 selectInput("var", "Variable :", choices = vars_num),
-                 sliderInput("bins", "Nombre de classes :", min = 5, max = 50, value = 20),
-                 colourInput("col", "Couleur :", value = "#8B5A2B")
-               ),
-               mainPanel(plotOutput("plot"))
-             )
-    )
-  )
-)
+                 leafletOutput("world_map", height = "480px"),
+                 p(class = "text-muted mt-2",
+                   "Taille des bulles = nombre de cafés ; couleur = score

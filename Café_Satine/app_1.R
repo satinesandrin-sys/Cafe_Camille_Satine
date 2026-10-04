@@ -213,11 +213,89 @@ texte_nailer <- function(res, type = c("response", "prompt")) {
   paste(capture.output(print(res)), collapse = "\n")
 }
 
+# ---- Habillage : thème café, fenêtre d'accueil ----------------------------------
+
+CSS_CAFE <- "
+body { background: #f6efe6; color: #3b2a20; font-family: 'Source Sans 3', 'Segoe UI', Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.5; }
+h1, h2, h3, h4, h5 { font-family: 'Playfair Display', Georgia, 'Times New Roman', serif; color: #3e2415; font-weight: 600; }
+.container-fluid > .row:first-child h2 { margin: 18px 0 16px; padding-bottom: 10px; border-bottom: 2px solid #b9814a; letter-spacing: 0.3px; }
+.well { background: #efe3d3; border: 1px solid #e0cfb8; border-radius: 6px; box-shadow: none; }
+.nav-tabs { border-bottom: 1px solid #d9c6ad; }
+.nav-tabs > li > a { color: #6f4e37; border: none; border-bottom: 3px solid transparent; border-radius: 0; font-weight: 600; margin-right: 6px; }
+.nav-tabs > li > a:hover { background: transparent; border-bottom-color: #d9b88f; color: #3e2415; }
+.nav-tabs > li.active > a, .nav-tabs > li.active > a:hover, .nav-tabs > li.active > a:focus { background: transparent; color: #3e2415; border: none; border-bottom: 3px solid #b9814a; }
+.btn { border-radius: 4px; font-weight: 600; }
+.btn-primary { background: #6f4e37; border-color: #6f4e37; color: #fff; }
+.btn-primary:hover, .btn-primary:focus, .btn-primary:active { background: #4e3626; border-color: #4e3626; }
+.btn-default { background: #fbf7f1; border-color: #b9814a; color: #6f4e37; }
+.btn-default:hover, .btn-default:focus { background: #efe3d3; border-color: #8c5a2b; color: #3e2415; }
+.form-control, .selectize-input { background: #fffdf9; border-color: #d9c6ad; border-radius: 4px; box-shadow: none; }
+.form-control:focus, .selectize-input.focus { border-color: #b9814a; box-shadow: 0 0 0 2px rgba(185, 129, 74, 0.2); }
+.selectize-control.multi .selectize-input > div { background: #ead9c1; color: #3e2415; border-radius: 3px; }
+.selectize-dropdown .active { background: #efe3d3; color: #3e2415; }
+input[type=checkbox], input[type=radio] { accent-color: #8c5a2b; }
+.irs-bar, .irs--shiny .irs-bar { background: #b9814a; border-top-color: #b9814a; border-bottom-color: #b9814a; }
+.irs-from, .irs-to, .irs-single, .irs--shiny .irs-from, .irs--shiny .irs-to, .irs--shiny .irs-single { background: #6f4e37; }
+.irs--shiny .irs-line { background: #e6d6bf; border-color: #d9c6ad; }
+.irs--shiny .irs-handle { border-color: #6f4e37; }
+.alert { border-radius: 6px; }
+.alert-success { background: #f1e4d0; border-color: #d9b88f; color: #3e2415; }
+.alert-danger { background: #f5e0da; border-color: #d8a89c; color: #5a1f14; }
+.table > thead > tr > th { border-bottom: 2px solid #b9814a; color: #3e2415; font-weight: 600; }
+.table-striped > tbody > tr:nth-of-type(odd) { background: #f1e7d9; }
+.table > tbody > tr > td { border-top: 1px solid #e6d6bf; }
+.help-block { color: #8a7565; font-size: 13px; }
+hr { border-top: 1px solid #d9c6ad; }
+pre { background: #f1e7d9; border: 1px solid #e0cfb8; color: #3b2a20; }
+.avis-conseiller { white-space: pre-wrap; background: #fbf7f1; border-left: 4px solid #b9814a; padding: 14px 16px; border-radius: 4px; }
+.leaflet-container { background: #a6cee3; border: 1px solid #d9c6ad; border-radius: 6px; font-family: inherit; }
+.modal-content { background: #f6efe6; border: none; border-radius: 10px; box-shadow: 0 18px 50px rgba(43, 26, 18, 0.35); }
+.modal-footer { border-top: none; text-align: center; }
+.modal.fade .modal-dialog { transform: scale(0.85); opacity: 0; transition: transform 0.35s ease-out, opacity 0.35s ease-out; }
+.modal.in .modal-dialog { transform: scale(1); opacity: 1; }
+.accueil { text-align: center; padding: 6px 10px 0; }
+.accueil svg, .accueil-img { max-width: 100%; height: auto; max-height: 260px; border-radius: 8px; }
+.accueil h2 { margin: 14px 0 6px; }
+.accueil p { color: #6f4e37; font-size: 16px; max-width: 420px; margin: 0 auto; }
+.vapeur { animation: vapeur 3.4s ease-in-out infinite; }
+@keyframes vapeur { 0% { opacity: 0; transform: translateY(10px); } 40% { opacity: 0.85; } 100% { opacity: 0; transform: translateY(-12px); } }
+"
+SVG_TASSE <- '<svg viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tasse de café fumante">
+<ellipse cx="200" cy="236" rx="152" ry="26" fill="#d9c4a8"/>
+<ellipse cx="200" cy="229" rx="140" ry="22" fill="#efe3d3"/>
+<path d="M290 126 C338 118 340 190 282 188" fill="none" stroke="#6f4e37" stroke-width="14" stroke-linecap="round"/>
+<path d="M290 126 C338 118 340 190 282 188" fill="none" stroke="#f6efe6" stroke-width="5" stroke-linecap="round"/>
+<path d="M110 112 H290 V172 C290 210 255 234 200 234 C145 234 110 210 110 172 Z" fill="#fbf7f1" stroke="#6f4e37" stroke-width="4"/>
+<ellipse cx="200" cy="112" rx="90" ry="18" fill="#3e2415" stroke="#6f4e37" stroke-width="4"/>
+<ellipse cx="200" cy="110" rx="62" ry="9" fill="#8c5a2b" opacity="0.6"/>
+<path class="vapeur" style="animation-delay:0s" d="M168 84 C156 66 180 56 168 36" fill="none" stroke="#b9814a" stroke-width="4" stroke-linecap="round"/>
+<path class="vapeur" style="animation-delay:1.1s" d="M200 80 C188 62 212 52 200 30" fill="none" stroke="#b9814a" stroke-width="4" stroke-linecap="round"/>
+<path class="vapeur" style="animation-delay:2.2s" d="M232 84 C220 66 244 56 232 36" fill="none" stroke="#b9814a" stroke-width="4" stroke-linecap="round"/>
+<g transform="translate(52 246) rotate(-25)"><ellipse rx="21" ry="13" fill="#6f4e37"/><path d="M-19 0 C-7 -6 7 6 19 0" fill="none" stroke="#3e2415" stroke-width="3"/></g>
+<g transform="translate(348 250) rotate(20)"><ellipse rx="21" ry="13" fill="#6f4e37"/><path d="M-19 0 C-7 -6 7 6 19 0" fill="none" stroke="#3e2415" stroke-width="3"/></g>
+</svg>'
+
+# Si une photo "cafe.jpg" (ou .png / .webp) est déposée dans le dossier www/, elle
+# remplace l'illustration de la fenêtre d'accueil.
+photo_accueil <- list.files("www", pattern = "^cafe\\.(jpe?g|png|webp)$", ignore.case = TRUE)[1]
+image_accueil <- if (!is.na(photo_accueil)) tags$img(src = photo_accueil, class = "accueil-img",
+                                                       alt = "Café") else HTML(SVG_TASSE)
+
+# palette et police communes aux graphiques plotly
+theme_cafe <- function(p) {
+  layout(p, font = list(family = "Source Sans 3, Segoe UI, Arial, sans-serif", color = "#3b2a20"),
+         colorway = c("#6f4e37", "#c27c3c", "#7d8a5b", "#a8503f"),
+         paper_bgcolor = "rgba(0,0,0,0)", plot_bgcolor = "rgba(0,0,0,0)")
+}
+
 # ---- 4. INTERFACE -------------------------------------------------------------
 
 ui <- fluidPage(
-  tags$head(tags$style(HTML(".leaflet-container { background: #a6cee3; }"))),
-  titlePanel("Choisir son café - ébauche v0"),
+  tags$head(
+    tags$link(rel = "stylesheet",
+              href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Source+Sans+3:wght@400;600&display=swap"),
+    tags$style(HTML(CSS_CAFE))),
+  titlePanel("Choisir son café", windowTitle = "Choisir son café"),
   sidebarLayout(
     sidebarPanel(
       width = 3,
@@ -308,6 +386,15 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
 
+  # fenêtre d'accueil
+  showModal(modalDialog(
+    div(class = "accueil",
+        image_accueil,
+        h2("Choisir son café"),
+        p("Parcourez la carte des cafés du monde, découvrez leurs profils de goût",
+          "et laissez le conseiller vous orienter selon vos envies.")),
+    footer = modalButton("Découvrir"), easyClose = TRUE, size = "m", fade = TRUE))
+
   # -- données filtrées (onglets 1 et 2)
   filtre <- reactive({
     d <- cafe
@@ -351,7 +438,7 @@ server <- function(input, output, session) {
     rng <- range(v, na.rm = TRUE)
     if (!is.finite(rng[1])) return()
     if (diff(rng) == 0) rng <- rng + c(-0.5, 0.5)
-    pal <- colorNumeric("YlOrBr", rng, na.color = "#ececec")
+    pal <- colorNumeric(c("#f2e4cf", "#d2a572", "#a56a35", "#6b3f1f", "#33190d"), rng, na.color = "#e9dfd0")
     i <- match(monde$ISO_A3_EH, st$iso)
     etiq <- ifelse(is.na(i), sprintf("<b>%s</b><br>pas de lot", monde$NAME),
                    sprintf("<b>%s</b><br>%d lots<br>Score moyen : %.1f",
@@ -387,6 +474,7 @@ server <- function(input, output, session) {
   output$hist_pays <- renderPlotly({
     plot_ly(d_pays(), x = ~score, type = "histogram", marker = list(color = "#8c5a2b")) |>
       layout(xaxis = list(title = "Score total"), yaxis = list(title = "Lots")) |>
+      theme_cafe() |>
       config(displayModeBar = FALSE)
   })
   output$top_pays <- renderTable({
@@ -411,7 +499,8 @@ server <- function(input, output, session) {
     }
     layout(p, polar = list(radialaxis = list(range = c(floor(min(toutes) * 2) / 2 - 0.5,
                                                        ceiling(max(toutes) * 2) / 2 + 0.25))),
-           legend = list(orientation = "h"))
+           legend = list(orientation = "h")) |>
+      theme_cafe()
   })
   output$mots <- renderUI({
     req(length(input$s_pays) > 0)
@@ -557,8 +646,7 @@ server <- function(input, output, session) {
     if (r$apercu)
       return(tagList(h5("Prompt envoyé au LLM (aucun appel effectué)"), tags$pre(r$texte)))
     tagList(h5(paste("L'avis du conseiller sur :", r$cible)),
-            div(style = "white-space: pre-wrap; background: #f8f4ee; padding: 12px; border-radius: 6px;",
-                r$texte))
+            div(class = "avis-conseiller", r$texte))
   })
 }
 

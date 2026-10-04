@@ -6,7 +6,7 @@
 # Arborescence attendue :
 #   app.R
 #   data/            <- les CSV café (ex. df_arabica_clean.csv, df_robusta_clean.csv)
-#   data/ne_110m_admin_0_countries.shp (+ .dbf .shx .prj .cpg)   (ou à la racine)
+#   data/NaturalEarth_Map.shp (+ .dbf .shx .prj .cpg, même nom de base)   (ou à côté de app.R)
 #
 # Packages : shiny, leaflet, sf, plotly, dplyr (aucune clé API requise)
 # Conseiller IA (onglet "Choix de café") : NaileR + ollamar + un serveur Ollama local
@@ -104,8 +104,12 @@ message("Attributs sensoriels retenus : ", paste(attr_cols, collapse = ", "))
 
 # ---- 2. FOND DE CARTE + JOINTURE DES NOMS DE PAYS -----------------------------
 
-shp <- c("data/ne_110m_admin_0_countries.shp", "ne_110m_admin_0_countries.shp")
-shp <- shp[file.exists(shp)][1]
+shp <- list.files(c(".", "data"), pattern = "^NaturalEarth_Map\\.shp$",
+                  recursive = TRUE, full.names = TRUE, ignore.case = TRUE)[1]
+if (is.na(shp)) {
+  stop("Shapefile introuvable (dossier de travail : ", getwd(), "). Placez ",
+       "NaturalEarth_Map.shp, .shx, .dbf, .prj et .cpg à côté de app.R ou dans data/.")
+}
 monde <- st_transform(st_read(shp, quiet = TRUE), 4326)
 
 cle <- function(x) gsub("[^a-z]", "", tolower(iconv(x, to = "ASCII//TRANSLIT")))
@@ -266,20 +270,28 @@ ui <- fluidPage(
                           "pour faire ressortir les différences.")),
         tabPanel("Choix de café (conseiller IA)", value = "choix",
                  br(),
+                 wellPanel(
+                   h4("Dites-moi ce que vous aimez"),
+                   textAreaInput("c_texte", NULL, rows = 3, width = "100%",
+                                 placeholder = "Ex. : un café doux et fruité pour le petit-déjeuner, pas trop acide..."),
+                   fluidRow(
+                     column(5, selectizeInput("c_model", "Modèle Ollama", modeles_ollama,
+                                              selected = modeles_ollama[1],
+                                              options = list(create = TRUE))),
+                     column(7, br(), actionButton("c_interp", "Interpréter mes envies",
+                                                  class = "btn-primary"))),
+                   uiOutput("c_interp_res"),
+                   helpText("L'IA règle les curseurs de gauche à partir de votre texte ;",
+                            "vous pouvez ensuite les ajuster à la main. L'amertume n'est pas mesurée dans les données.")),
                  h4("Les pays qui correspondent à vos goûts"),
                  tableOutput("c_classement"),
-                 helpText("Compatibilité relative : 100 = pays le plus proche de vos goûts parmi",
-                          "ceux qui ont assez de lots, 0 = le plus éloigné."),
+                 helpText("Compatibilité relative : 100 = pays le plus proche de vos goûts, 0 = le plus éloigné."),
                  hr(),
-                 h4("Demandez conseil à l'IA"),
+                 h4("L'avis du conseiller"),
                  fluidRow(
                    column(4, selectInput("c_pays", "Pays à expliquer", NULL)),
-                   column(4, selectizeInput("c_model", "Modèle Ollama", modeles_ollama,
-                                            selected = modeles_ollama[1],
-                                            options = list(create = TRUE))),
-                   column(4, br(), actionButton("c_go", "Demander au conseiller",
-                                                class = "btn-primary"))),
-                 checkboxInput("c_apercu", "Afficher seulement le prompt (sans appeler le LLM)", FALSE),
+                   column(4, br(), actionButton("c_go", "Demander au conseiller")),
+                   column(4, br(), checkboxInput("c_apercu", "Voir seulement le prompt (sans LLM)", FALSE))),
                  uiOutput("c_profil"),
                  uiOutput("c_reponse"),
                  helpText(textOutput("c_statut", inline = TRUE)),
@@ -436,7 +448,7 @@ server <- function(input, output, session) {
 
   output$c_classement <- renderTable({
     cl <- head(classement(), 5)
-    data.frame(Pays = cl$pays, `Compatibilité (%)` = cl$compat, Lots = cl$n,
+    data.frame(Pays = cl$pays, `Compatibilité (%)` = cl$compat,
                `Score CQI moyen` = round(cl$score, 1), check.names = FALSE)
   }, striped = TRUE, spacing = "xs")
 
@@ -461,18 +473,67 @@ server <- function(input, output, session) {
            "(par rapport à tous les cafés ; calcul statistique, sans IA)")
   })
 
+  # LLM 1 : traduit le texte libre en réglages des curseurs
+  msg_interp <- reactiveVal(NULL)
+  observeEvent(input$c_interp, {
+    txt <- trimws(paste(input$c_texte, collapse = " "))
+    if (!nzchar(txt))
+      return(msg_interp(list(erreur = "Écrivez d'abord quelques mots sur vos envies.")))
+    if (!requireNamespace("ollamar", quietly = TRUE))
+      return(msg_interp(list(erreur = "le package ollamar n'est pas installé (install.packages('ollamar')).")))
+    meths <- setdiff(methodes, "Non renseigné")
+    gabarit <- paste0("{", paste0('"', KEY, '":3', collapse = ","),
+                      ',"methode":"","qualite":false,"explication":"..."}')
+    prompt <- paste0(
+      "Tu aides un consommateur à choisir un café. Il décrit ses envies : « ", txt, " ».\n",
+      "Traduis ces envies en niveaux de 1 (pas du tout) à 5 (beaucoup), 3 = indifférent, pour : ",
+      paste0('"', KEY, '" (', ADJ[KEY], ')', collapse = ", "), ".\n",
+      "Indique aussi \"methode\" parmi [", paste(meths, collapse = ", "),
+      "] ou \"\" si rien n'est précisé, \"qualite\" à true s'il veut le meilleur café possible, ",
+      "et \"explication\" : une phrase en français qui reformule ce que tu as compris. ",
+      "L'amertume n'est pas mesurée : si la personne en parle, ne la traduis pas en niveau et ",
+      "dis-le dans l'explication.\n",
+      "Réponds uniquement par un objet JSON valide, sans aucun texte autour, de la forme ", gabarit)
+    sortie <- withProgress(message = "Je lis vos envies...", value = 0.5,
+      tryCatch(ollamar::generate(model = input$c_model, prompt = prompt,
+                                 output = "text", stream = FALSE),
+               error = function(e) e))
+    if (inherits(sortie, "error")) return(msg_interp(list(erreur = conditionMessage(sortie))))
+    json <- regmatches(sortie, regexpr("\\{[^{}]*\\}", sortie))
+    pr <- if (length(json)) tryCatch(jsonlite::fromJSON(json), error = function(e) NULL)
+    if (is.null(pr)) return(msg_interp(list(erreur = "réponse du LLM illisible, reformulez ou relancez.")))
+    for (a in KEY) {
+      v <- suppressWarnings(as.integer(round(as.numeric(pr[[a]]))))
+      if (length(v) == 1 && !is.na(v)) updateSliderInput(session, paste0("c_", a), value = max(1, min(5, v)))
+    }
+    m <- pr[["methode"]]
+    updateSelectInput(session, "c_meth", selected = if (is.character(m) && length(m) == 1 && m %in% meths) m else "")
+    updateCheckboxInput(session, "c_qual", value = isTRUE(pr[["qualite"]]))
+    msg_interp(list(texte = if (is.character(pr[["explication"]])) pr[["explication"]] else "Réglages mis à jour."))
+  })
+  output$c_interp_res <- renderUI({
+    r <- msg_interp(); req(r)
+    if (!is.null(r$erreur))
+      return(div(class = "alert alert-danger", strong("Interprétation impossible : "), r$erreur,
+                 br(), "Vérifiez qu'Ollama est lancé et que le modèle est téléchargé."))
+    div(class = "alert alert-success", strong("J'ai compris : "), r$texte,
+        " Les curseurs ont été réglés ; vous pouvez les modifier.")
+  })
+
   reponse <- eventReactive(input$c_go, {
     req(input$c_pays)
     if (!NAILER_OK)
       return(list(erreur = "le package NaileR n'est pas installé (devtools::install_github('Sebastien-Le/NaileR'))."))
     cible <- input$c_pays; apercu <- isTRUE(input$c_apercu)
+    txt_libre <- trimws(paste(input$c_texte, collapse = " "))
     prefs <- paste(vapply(KEY, function(a)
       paste(NIVEAUX[input[[paste0("c_", a)]]], ADJ[[a]]), character(1)), collapse = ", ")
     intro <- paste0(
       "Contexte : application d'aide au choix de café pour un consommateur de supermarché. ",
       "Les données sont des lots de café évalués par des dégustateurs (notes de 0 à 10 par critère ; ",
       "altitude de culture en classes ; méthode de production). Le groupe « ", cible,
-      " » est comparé au groupe « Autres pays ». Le consommateur recherche un café : ", prefs, ".")
+      " » est comparé au groupe « Autres pays ». Le consommateur recherche un café : ", prefs, ".",
+      if (nzchar(txt_libre)) paste0(" Il l'exprime ainsi : « ", txt_libre, " ».") else "")
     demande <- paste0(
       "À partir des seuls éléments statistiques fournis, rédige en français, pour un consommateur ",
       "non spécialiste, un conseil de 5 à 8 lignes : décris le goût typique du café du groupe « ",

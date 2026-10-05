@@ -283,7 +283,7 @@ SVG_TASSE <- '<svg viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg" role
 # remplace l'illustration de la fenêtre d'accueil.
 photo_accueil <- list.files("www", pattern = "^cafe\\.(jpe?g|png|webp)$", ignore.case = TRUE)[1]
 image_accueil <- if (!is.na(photo_accueil)) tags$img(src = photo_accueil, class = "accueil-img",
-                                                       alt = "Café") else HTML(SVG_TASSE)
+                                                     alt = "Café") else HTML(SVG_TASSE)
 
 # palette et police communes aux graphiques plotly
 theme_cafe <- function(p) {
@@ -414,7 +414,7 @@ ui <- fluidPage(
                          "vocabulaire, et montrer comment un modèle de langage peut aider à interpréter des",
                          "résultats statistiques sans les remplacer : le classement est un calcul, l'IA le commente",
                          "à partir de ces mêmes résultats (package NaileR, modèle exécuté en local)."),
-
+                     
                      h3("Le jeu de données"),
                      p("Les données viennent du ", strong("Coffee Quality Institute (CQI)"), ", dans la version",
                        "de mai 2023 publiée sur Kaggle (« Coffee Quality Data »). Chaque ligne est un",
@@ -425,7 +425,7 @@ ui <- fluidPage(
                      p(sprintf("Après nettoyage, l'application travaille sur %s lots issus de %d pays, récoltés entre %s.",
                                format(nrow(cafe), big.mark = " "), length(pays_liste), txt_periode),
                        "Le fond de carte vient de Natural Earth (échelle 1:110 millions)."),
-
+                     
                      h3("Les variables utilisées"),
                      p("Le tableau indique, pour chaque variable de l'application, la colonne du jeu de données",
                        "dont elle provient (nom normalisé en minuscules), sa définition et son échelle."),
@@ -437,7 +437,7 @@ ui <- fluidPage(
                        tags$li(strong("Semi-lavé et honey / pulped natural : "),
                                "variantes intermédiaires où une partie de la pulpe reste sur le grain pendant le séchage."),
                        tags$li(strong("Autre / non renseigné : "), "méthodes rares ou information absente.")),
-
+                     
                      h3("Les limites du projet"),
                      tags$ul(
                        tags$li(strong("Un échantillon de cafés d'exception. "),
@@ -470,16 +470,18 @@ ui <- fluidPage(
                        tags$li(strong("Une carte simplifiée. "),
                                "Au 1:110 millions, les petits territoires et îles n'apparaissent pas, et Hawaï est",
                                "rattaché aux États-Unis."))))
-,
+        ,
         tabPanel("Carte", value = "carte",
                  br(),
                  fluidRow(column(8, selectInput("indicateur", "Colorer les pays selon", IND)),
                           column(4, checkboxInput("fond_osm", "Afficher le fond OpenStreetMap", FALSE))),
+                 uiOutput("erreur_filtres_carte"),
                  leafletOutput("carte", height = 480),
                  br(),
                  uiOutput("detail_pays")),
         tabPanel("Profil sensoriel", value = "sens",
                  br(),
+                 uiOutput("erreur_filtres_sens"),
                  selectizeInput("s_pays", "Comparer jusqu'à 4 pays", pays_liste,
                                 multiple = TRUE, options = list(maxItems = 4)),
                  checkboxInput("s_tous", "Afficher tous les critères (sinon : sucré, acide, arôme, corps)", FALSE),
@@ -528,9 +530,9 @@ ui <- fluidPage(
 # ---- 5. SERVEUR ---------------------------------------------------------------
 
 server <- function(input, output, session) {
-
+  
   output$acc_variables <- renderTable(VARIABLES, striped = TRUE, spacing = "s")
-
+  
   # fenêtre d'accueil
   showModal(modalDialog(
     div(class = "accueil",
@@ -539,7 +541,7 @@ server <- function(input, output, session) {
         p("Parcourez la carte des cafés du monde, découvrez leurs profils de goût",
           "et laissez le conseiller vous orienter selon vos envies.")),
     footer = modalButton("Découvrir"), easyClose = TRUE, size = "m", fade = TRUE))
-
+  
   # -- données filtrées (onglets 1 et 2)
   filtre <- reactive({
     d <- cafe
@@ -552,6 +554,28 @@ server <- function(input, output, session) {
   })
   output$n_lots <- renderText(sprintf("%d lots correspondent aux filtres.", nrow(filtre())))
   
+  output$erreur_filtres_carte <- renderUI({
+    if (nrow(filtre()) == 0) {
+      div(
+        class = "alert alert-danger",
+        strong("Aucun lot ne correspond aux filtres sélectionnés."),
+        br(),
+        "Les filtres sont trop restrictifs. Veuillez élargir votre sélection."
+      )
+    }
+  })
+  
+  output$erreur_filtres_sens <- renderUI({
+    if (nrow(filtre()) == 0) {
+      div(
+        class = "alert alert-danger",
+        strong("Aucun lot ne correspond aux filtres sélectionnés."),
+        br(),
+        "Les filtres sont trop restrictifs. Veuillez élargir votre sélection."
+      )
+    }
+  })
+  
   observeEvent(input$reset_filtres, {
     updateSelectizeInput(session, "f_pays", selected = character(0))
     updateSliderInput(session, "f_alt", value = c(0, alt_max))
@@ -561,7 +585,7 @@ server <- function(input, output, session) {
     updateCheckboxGroupInput(session, "f_meth", selected = methodes)
     updateCheckboxGroupInput(session, "f_esp", selected = unique(cafe$espece))
   })
-
+  
   # -- agrégation par pays
   stats_pays <- reactive({
     d <- filtre(); d <- d[!is.na(d$iso), ]
@@ -571,20 +595,20 @@ server <- function(input, output, session) {
                  score = mean(x$score, na.rm = TRUE),
                  as.list(colMeans(x[attr_cols], na.rm = TRUE)))))
   })
-
+  
   # -- ONGLET 1 : carte
   output$carte <- renderLeaflet({
     # aucune tuile : la carte est tracée par les polygones Natural Earth (pas de clé API)
     leaflet(options = leafletOptions(minZoom = 2)) |>
       setView(lng = 10, lat = 15, zoom = 2)
   })
-
+  
   # fond OpenStreetMap facultatif (addTiles() : gratuit, sans clé)
   observeEvent(input$fond_osm, {
     proxy <- leafletProxy("carte") |> clearTiles()
     if (isTRUE(input$fond_osm)) proxy |> addTiles()
   })
-
+  
   observe({
     st <- stats_pays()
     proxy <- leafletProxy("carte") |> clearShapes() |> clearControls()
@@ -606,10 +630,10 @@ server <- function(input, output, session) {
                   highlightOptions = highlightOptions(weight = 2, color = "#333")) |>
       addLegend("bottomright", pal = pal, values = v, title = nom_ind, opacity = 0.9)
   })
-
+  
   pays_clic <- reactiveVal(NULL)
   observeEvent(input$carte_shape_click, pays_clic(input$carte_shape_click$id))
-
+  
   output$detail_pays <- renderUI({
     iso <- pays_clic()
     if (is.null(iso)) return(helpText("Cliquez sur un pays pour voir le détail de ses cafés."))
@@ -638,11 +662,13 @@ server <- function(input, output, session) {
                `Altitude (m)` = round(d$altitude), Année = d$annee,
                Variété = d$variete, check.names = FALSE)
   }, na = "n.d.", striped = TRUE, spacing = "xs")
-
+  
   # -- ONGLET 2 : profil sensoriel
   output$radar <- renderPlotly({
     req(length(input$s_pays) > 0)
-    d <- filtre(); cols <- if (input$s_tous) attr_cols else KEY
+    d <- filtre()
+    if (nrow(d) == 0) return(plotly_empty())
+    cols <- if (input$s_tous) attr_cols else KEY
     labs <- unname(ATTR_LAB[cols])
     moy <- lapply(input$s_pays, function(p) colMeans(d[d$pays == p, cols, drop = FALSE], na.rm = TRUE))
     toutes <- unlist(moy); toutes <- toutes[is.finite(toutes)]
@@ -660,13 +686,14 @@ server <- function(input, output, session) {
   output$mots <- renderUI({
     req(length(input$s_pays) > 0)
     d <- filtre(); cols <- if (input$s_tous) attr_cols else KEY
+    if (nrow(d) == 0) return(NULL)
     ref <- colMeans(d[cols], na.rm = TRUE)
     tagList(lapply(input$s_pays, function(pp) {
       m <- colMeans(d[d$pays == pp, cols, drop = FALSE], na.rm = TRUE)
       tags$p(strong(pp), ":", phrase_gout(m, ref), "(par rapport à l'ensemble des lots filtrés)")
     }))
   })
-
+  
   # -- ONGLET 3 : choix de café (classement + conseiller IA via NaileR)
   classement <- reactive({
     for (a in KEY) req(input[[paste0("c_", a)]])
@@ -689,25 +716,25 @@ server <- function(input, output, session) {
                       n = nb, score = moy$score)
     out[order(-out$compat), ]
   })
-
+  
   output$c_classement <- renderTable({
     cl <- head(classement(), 5)
     data.frame(Pays = cl$pays, `Compatibilité (%)` = cl$compat,
                `Score CQI moyen` = round(cl$score, 1), check.names = FALSE)
   }, striped = TRUE, spacing = "xs")
-
+  
   observe({
     cl <- tryCatch(classement(), error = function(e) NULL)
     if (!is.null(cl)) updateSelectInput(session, "c_pays",
                                         choices = head(cl$pays, 5), selected = cl$pays[1])
   })
-
+  
   output$c_statut <- renderText({
     invalidateLater(15000)
     paste0("NaileR : ", if (NAILER_OK) "installé" else "non installé",
            " | Ollama : ", if (ollama_actif()) "détecté" else "non détecté (lancez l'application Ollama)")
   })
-
+  
   # preuve statistique, indépendante du LLM
   output$c_profil <- renderUI({
     req(input$c_pays)
@@ -716,7 +743,7 @@ server <- function(input, output, session) {
     tags$p(strong(input$c_pays), ":", phrase_gout(m, ref),
            "(par rapport à tous les cafés ; calcul statistique, sans IA)")
   })
-
+  
   # LLM 1 : traduit le texte libre en réglages des curseurs
   msg_interp <- reactiveVal(NULL)
   observeEvent(input$c_interp, {
@@ -739,9 +766,9 @@ server <- function(input, output, session) {
       "dis-le dans l'explication.\n",
       "Réponds uniquement par un objet JSON valide, sans aucun texte autour, de la forme ", gabarit)
     sortie <- withProgress(message = "Je lis vos envies...", value = 0.5,
-      tryCatch(ollamar::generate(model = input$c_model, prompt = prompt,
-                                 output = "text", stream = FALSE),
-               error = function(e) e))
+                           tryCatch(ollamar::generate(model = input$c_model, prompt = prompt,
+                                                      output = "text", stream = FALSE),
+                                    error = function(e) e))
     if (inherits(sortie, "error")) return(msg_interp(list(erreur = conditionMessage(sortie))))
     json <- regmatches(sortie, regexpr("\\{[^{}]*\\}", sortie))
     pr <- if (length(json)) tryCatch(jsonlite::fromJSON(json), error = function(e) NULL)
@@ -763,7 +790,7 @@ server <- function(input, output, session) {
     div(class = "alert alert-success", strong("J'ai compris : "), r$texte,
         " Les curseurs ont été réglés ; vous pouvez les modifier.")
   })
-
+  
   reponse <- eventReactive(input$c_go, {
     req(input$c_pays)
     if (!NAILER_OK)
@@ -791,7 +818,7 @@ server <- function(input, output, session) {
     list(texte = texte_nailer(res, if (apercu) "prompt" else "response"),
          apercu = apercu, cible = cible)
   })
-
+  
   output$c_reponse <- renderUI({
     r <- reponse()
     if (!is.null(r$erreur))

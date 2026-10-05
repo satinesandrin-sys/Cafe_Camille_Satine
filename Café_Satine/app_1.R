@@ -376,6 +376,11 @@ ui <- fluidPage(
         textOutput("n_lots")
       ),
       conditionalPanel(
+        "input.onglet == 'carte'",
+        actionButton("reset_filtres", "Réinitialiser les filtres",
+                     icon = icon("refresh"), class = "btn-default")
+      ),
+      conditionalPanel(
         "input.onglet == 'choix'",
         h4("Mes goûts"),
         lapply(KEY, function(a)
@@ -546,6 +551,16 @@ server <- function(input, output, session) {
     d[d$methode %in% input$f_meth & d$espece %in% input$f_esp, ]
   })
   output$n_lots <- renderText(sprintf("%d lots correspondent aux filtres.", nrow(filtre())))
+  
+  observeEvent(input$reset_filtres, {
+    updateSelectizeInput(session, "f_pays", selected = character(0))
+    updateSliderInput(session, "f_alt", value = c(0, alt_max))
+    updateCheckboxInput(session, "f_alt_na", value = TRUE)
+    updateSliderInput(session, "f_an", value = an_range)
+    updateCheckboxInput(session, "f_an_na", value = TRUE)
+    updateCheckboxGroupInput(session, "f_meth", selected = methodes)
+    updateCheckboxGroupInput(session, "f_esp", selected = unique(cafe$espece))
+  })
 
   # -- agrégation par pays
   stats_pays <- reactive({

@@ -4,3 +4,4 @@
 - rajouter message d'erreur quand plus de donnée quand plus donnée
 - rejouter bouton message d'erreur
 - faire bande en haut avec noms et logo
+- mettre à jour readme

@@ -178,14 +178,93 @@ function(input, output, session) {
   })
   
   
-  # ---- Onglet Analyses : histogramme ----------------------------------------
-  output$plot <- renderPlot({
-    hist(cafe[[input$var]],
-         breaks = input$bins,
-         col = input$col,
-         border = "white",
-         main = paste("Distribution de la variable", input$var),
-         xlab = input$var)
+  # ---- Onglet Analyses : Régression -----------------------------------------
+  reg_data <- reactive({
+    cafe %>% filter(!is.na(Altitude_num), !is.na(Total.Cup.Points))
+  })
+  
+  reg_model <- reactive({
+    lm(Total.Cup.Points ~ Altitude_num, data = reg_data())
+  })
+  
+  output$reg_plot <- renderPlot({
+    p <- ggplot(reg_data(), aes(x = Altitude_num, y = Total.Cup.Points))
     
+    if (input$reg_par_variete) {
+      p <- p + geom_point(aes(color = Variety_clean), alpha = 0.5)
+    } else {
+      p <- p + geom_point(alpha = 0.4, color = "#8B5A2B")
+    }
+    
+    p +
+      geom_smooth(method = "lm", color = "#5A3A1A", se = TRUE) +
+      labs(title = "Score total en fonction de l'altitude",
+           x = "Altitude (m)", y = "Total Cup Points", color = "Variété") +
+      theme_minimal()
+  })
+  
+  output$reg_summary <- renderPrint({
+    summary(reg_model())
   })
 }
+ 
+# ---- Onglet "Trouve ton café" ---------------------------------------------
+extraire_criteres_texte <- function(texte) {
+  t <- normaliser_texte(texte)
+  
+  pays_trouves <- names(alias_pays)[sapply(alias_pays, function(a) any(sapply(a, grepl, t, fixed = TRUE)))]
+  pays_trouves <- c(pays_trouves,
+                    choix_pays[sapply(tolower(choix_pays), grepl, t, fixed = TRUE)])
+  
+  variete_trouvee <- choix_variete[sapply(tolower(choix_variete), grepl, t, fixed = TRUE)]
+  
+  methode_trouvee <- names(alias_methode)[sapply(alias_methode, function(a) any(sapply(a, grepl, t, fixed = TRUE)))]
+  
+  descripteurs_trouves <- names(synonymes_descripteurs)[
+    sapply(synonymes_descripteurs, function(a) any(sapply(a, grepl, t, fixed = TRUE)))
+  ]
+  
+  list(pays = unique(pays_trouves), variete = unique(variete_trouvee),
+       methode = unique(methode_trouvee), descripteurs = descripteurs_trouves)
+}
+
+resultats_recherche <- eventReactive(input$chercher_cafe, {
+  texte <- input$recherche_texte
+  validate(need(!is.null(texte) && nchar(trimws(texte)) > 0,
+                "Tape une phrase décrivant le café que tu recherches."))
+  
+  criteres <- extraire_criteres_texte(texte)
+  rien_reconnu <- length(criteres$pays) == 0 && length(criteres$variete) == 0 &&
+    length(criteres$methode) == 0 && length(criteres$descripteurs) == 0
+  validate(need(!rien_reconnu,
+                "Aucun terme reconnu dans ta phrase. Essaie avec un pays, une méthode, ou un mot comme \"fruité\", \"corsé\", \"doux\"..."))
+  
+  d <- cafe
+  if (length(criteres$pays) > 0)    d <- d %>% filter(Country.of.Origin %in% criteres$pays)
+  if (length(criteres$variete) > 0) d <- d %>% filter(Variety_clean %in% criteres$variete)
+  if (length(criteres$methode) > 0) d <- d %>% filter(Processing_clean %in% criteres$methode)
+  
+  filtres_actifs <- length(criteres$pays) + length(criteres$variete) + length(criteres$methode) > 0
+  elargi <- FALSE
+  if (nrow(d) < 5 && filtres_actifs) { d <- cafe; elargi <- TRUE }
+  
+  cible <- sapply(vars_profil, function(v) mean(cafe[[v]], na.rm = TRUE))
+  for (desc in criteres$descripteurs) {
+    bump <- descripteurs_profil[[desc]]
+    for (v in names(bump)) cible[v] <- cible[v] + bump[v] * sd(cafe[[v]], na.rm = TRUE)
+  }
+  
+  cible_proj <- as.numeric(
+    predict(pca_profil, newdata = as.data.frame(t(cible)))[, 1:k_composantes, drop = FALSE]
+  )
+  
+  ids_dispo   <- intersect(d$.id, ids_pca)
+  scores_pca  <- pca_profil$x[ids_pca %in% ids_dispo, 1:k_composantes, drop = FALSE]
+  ids_valides <- ids_pca[ids_pca %in% ids_dispo]
+  
+  distances <- sqrt(rowSums(sweep(scores_pca, 2, cible_proj)^2))
+  top5_ids  <- ids_valides[order(distances)][seq_len(min(5, length(distances)))]
+  
+  list(cafes = cafe %>% filter(.id %in% top5_ids) %>% arrange(match(.id, top5_ids)),
+       elargi = elargi, criteres = criteres)
+})

@@ -1,6 +1,8 @@
 - données brutes sous cartes liés aux filtres
+- carte vide sans première modif des filtres
 - dans profil senso, rajouter une phrase d'accroche pour comparer les pays (séléctioner) 
 - maps spider, mettre maps individuel en dessous de la maps globale (lié aux filtres aussi)
+
 - rajouter message d'erreur quand plus de donnée quand plus donnée
 - rejouter bouton message d'erreur
 - faire bande en haut avec noms et logo

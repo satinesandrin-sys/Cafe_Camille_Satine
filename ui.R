@@ -218,6 +218,10 @@ fluidPage(
                             class = "form-control", placeholder = "Ex : un café fruité et léger, pas trop acide...",
                             style = "margin-bottom: 12px;"),
                  actionButton("chercher_cafe", "☕ Trouver mon café", class = "btn-sm w-100")
+               ),
+               
+               mainPanel(
+                 uiOutput("resultat_recherche")
                )
              )
     )

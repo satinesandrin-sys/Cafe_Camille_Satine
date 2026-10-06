@@ -1290,15 +1290,12 @@ ui <- fluidPage(
             )
           ),
           
-          leafletOutput(
-            "carte",
-            height = 480
-          ),
-          
+          leafletOutput("carte", height = 480),
+          h4("Données utilisées par la carte"),
+          helpText("Le tableau suit les filtres de gauche et est trié selon l'indicateur choisi."),
+          div(style = "max-height: 320px; overflow-y: auto;", tableOutput("table_carte")),
           br(),
-          
-          uiOutput("detail_pays")
-        ),
+          uiOutput("detail_pays")),
         
         tabPanel(
           "Profil sensoriel",
@@ -1603,8 +1600,11 @@ server <- function(input, output, session) {
       proxy |> addTiles()
   })
   
+  carte_prete <- reactiveVal(FALSE)
+  observeEvent(input$carte_bounds, carte_prete(TRUE), once = TRUE)
+  
   observe({
-    
+    req(carte_prete())
     st <- stats_pays()
     
     proxy <- leafletProxy("carte") |>
@@ -1681,6 +1681,15 @@ server <- function(input, output, session) {
         opacity = 0.9
       )
   })
+  
+  output$table_carte <- renderTable({
+    st <- stats_pays(); req(st)
+    st <- st[order(-st[[input$indicateur]]), ]
+    out <- data.frame(Pays = st$pays, Lots = st$n,
+                      `Score total moyen` = round(st$score, 2), check.names = FALSE)
+    for (a in attr_cols) out[[ATTR_LAB[[a]]]] <- round(st[[a]], 2)
+    out
+  }, striped = TRUE, spacing = "xs")
   
   pays_clic <- reactiveVal(NULL)
   

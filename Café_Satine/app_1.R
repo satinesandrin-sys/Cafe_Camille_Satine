@@ -836,112 +836,7 @@ CHIFFRES <- tags$ul(
   )
 )
 
-DESC_ATTR <- c(
-  aroma = "Intensité et qualité des arômes du café, à sec puis une fois infusé.",
-  flavor = "Impression globale de goût en bouche.",
-  aftertaste = "Durée et qualité des saveurs qui persistent après avoir avalé.",
-  acidity = "Vivacité et fraîcheur du café. Ici c'est une qualité (éclat, fruité), pas de l'aigreur.",
-  body = "Sensation de texture, d'épaisseur en bouche.",
-  balance = "Harmonie entre la saveur, l'acidité et le corps.",
-  sweetness = "Douceur et rondeur perçues."
-)
 
-ECH_ATTR <-
-  if (all(is.finite(q_att)))
-    sprintf(
-      "0 à 10 (90 %% des notes entre %.1f et %.1f)",
-      q_att[1],
-      q_att[2]
-    )
-else
-  "0 à 10"
-
-lignes <- c(
-  list(
-    c(
-      "Score total (Total Cup Points)",
-      src_col(c("total_cup_points", "total_score")),
-      "Somme des notes de dégustation : le résumé de la qualité d'un lot.",
-      sprintf(
-        "environ 0 à 100 (90 %% des lots entre %.0f et %.0f) ; 80 et plus = café dit de spécialité",
-        q_sc[1],
-        q_sc[2]
-      )
-    )
-  ),
-  lapply(
-    attr_cols,
-    function(a)
-      c(
-        ATTR_LAB[[a]],
-        src_col(ATTR_CAND[[a]]),
-        DESC_ATTR[[a]],
-        ECH_ATTR
-      )
-  ),
-  list(
-    c(
-      "Pays d'origine",
-      src_col(c("country_of_origin", "country")),
-      "Pays de production du lot (Hawaï est rattaché aux États-Unis sur la carte).",
-      "texte"
-    ),
-    c(
-      "Altitude",
-      src_col(c("altitude_mean_meters", "altitude")),
-      "Altitude de culture. Saisie libre à l'origine (fourchettes, pieds) : nous prenons la moyenne, convertissons en mètres et écartons les valeurs au-delà de 5 000 m.",
-      "mètres"
-    ),
-    c(
-      "Année de récolte",
-      src_col(c("harvest_year", "harvest")),
-      "Année extraite du texte d'origine (première année à quatre chiffres trouvée).",
-      "année"
-    ),
-    c(
-      "Méthode de production",
-      src_col(c("processing_method", "process")),
-      "Traitement des cerises après la récolte, regroupé en catégories.",
-      "Lavé, Nature (sec), Semi-lavé, Honey / pulped natural, Autre, Non renseigné"
-    ),
-    c(
-      "Espèce",
-      "nom du fichier CSV",
-      "Arabica ou Robusta, déduite du nom du fichier source.",
-      "Arabica, Robusta"
-    ),
-    c(
-      "Variété",
-      src_col("variety"),
-      "Variété botanique (Bourbon, Caturra...). Affichée dans le détail des lots, non utilisée dans les calculs.",
-      "texte"
-    ),
-    c(
-      "Compatibilité (%)",
-      "calculée par l'application",
-      "Proximité entre vos goûts et le profil moyen d'un pays. Hors jeu de données.",
-      "0 à 100, relatif : 100 = pays le plus proche des goûts choisis"
-    ),
-    c(
-      "Score CQI moyen",
-      "calculé par l'application",
-      "Moyenne du score total des lots d'un pays.",
-      "même échelle que le score total"
-    )
-  )
-)
-
-VARIABLES <- as.data.frame(
-  do.call(rbind, lignes),
-  stringsAsFactors = FALSE
-)
-
-names(VARIABLES) <- c(
-  "Variable",
-  "Colonne du jeu de données",
-  "Définition",
-  "Échelle ou valeurs"
-)
 
 PHRASES_CAFE <- c(
   "Un café doux et sucré pour le matin",
@@ -1116,166 +1011,34 @@ ui <- fluidPage(
       tabsetPanel(
         id = "onglet",
         
-        tabPanel(
-          "Accueil",
-          value = "accueil",
-          br(),
-          
-          div(
-            class = "page-accueil",
-            
-            h3("Le projet"),
-            
-            p(
-              "Au supermarché, le choix d'un café repose sur peu d'indications : un pays,",
-              "parfois la mention « arabica », une photo de plantation. Cette application",
-              "traduit les notes de dégustateurs professionnels en repères simples (sucré,",
-              "acide, aromatique, corsé) pour aider un consommateur non spécialiste à s'orienter."
-            ),
-            
-            p(
-              "Elle s'organise en quatre parties : cette page de présentation ; une carte du monde",
-              "interactive, filtrable par pays, altitude, année de récolte et méthode de production ;",
-              "un profil sensoriel qui compare le goût moyen des pays ; et un onglet de choix où l'on",
-              "décrit ses envies, avec des curseurs ou avec ses propres mots, pour obtenir un classement",
-              "de pays et l'avis d'un conseiller IA."
-            ),
-            
-            div(
-              class = "encart",
-              
-              strong("Son intérêt. "),
-              
-              "Rendre accessible une base de données d'experts à un public qui n'en maîtrise pas le",
-              "vocabulaire, et montrer comment un modèle de langage peut aider à interpréter des",
-              "résultats statistiques sans les remplacer : le classement est un calcul, l'IA le commente",
-              "à partir de ces mêmes résultats (package NaileR, modèle exécuté en local)."
-            ),
-            
-            h3("Le jeu de données"),
-            
-            p(
-              "Les données viennent du ",
-              strong("Coffee Quality Institute (CQI)"),
-              ", dans la version",
-              "de mai 2023 publiée sur Kaggle (« Coffee Quality Data »). Chaque ligne est un",
-              strong("lot de café"),
-              " évalué par des dégustateurs certifiés selon un protocole commun :",
-              "ils notent plusieurs critères sensoriels, dont la somme donne un score total. Les lots",
-              "sont aussi décrits par leur pays d'origine, leur altitude, leur année de récolte et",
-              "leur méthode de production."
-            ),
-            
-            p(
-              sprintf(
-                "Après nettoyage, l'application travaille sur %s lots issus de %d pays, récoltés entre %s.",
-                format(nrow(cafe), big.mark = " "),
-                length(pays_liste),
-                txt_periode
-              ),
-              "Le fond de carte vient de Natural Earth (échelle 1:110 millions)."
-            ),
-            
-            h3("Les variables utilisées"),
-            
-            p(
-              "Le tableau indique, pour chaque variable de l'application, la colonne du jeu de données",
-              "dont elle provient (nom normalisé en minuscules), sa définition et son échelle."
-            ),
-            
-            tableOutput("acc_variables"),
-            
-            h4("Les méthodes de production"),
-            
-            tags$ul(
-              tags$li(
-                strong("Lavé : "),
-                "la pulpe de la cerise est retirée puis le grain est lavé avant séchage."
-              ),
-              
-              tags$li(
-                strong("Nature (sec) : "),
-                "la cerise entière sèche au soleil, le grain est extrait ensuite."
-              ),
-              
-              tags$li(
-                strong("Semi-lavé et honey / pulped natural : "),
-                "variantes intermédiaires où une partie de la pulpe reste sur le grain pendant le séchage."
-              ),
-              
-              tags$li(
-                strong("Autre / non renseigné : "),
-                "méthodes rares ou information absente."
-              )
-            ),
-            
-            h3("Les limites du projet"),
-            
-            tags$ul(
-              
-              tags$li(
-                strong("Un échantillon de cafés d'exception. "),
-                "Les lots du CQI sont surtout des cafés de spécialité. Les cafés de supermarché y sont",
-                "peu représentés : les scores sont élevés et se ressemblent. Ils servent de repères relatifs",
-                "entre pays, pas de note pour un paquet précis."
-              ),
-              
-              tags$li(
-                strong("Un lot n'est pas un paquet. "),
-                "Les emballages indiquent rarement l'altitude ou la méthode, et beaucoup sont des mélanges",
-                "d'origines. L'application ne traite que des origines uniques."
-              ),
-              
-              tags$li(
-                strong("Le pays est une échelle large. "),
-                "Les différences entre régions, fermes et variétés sont ignorées. Certains pays ont peu de",
-                "lots : leurs moyennes sont fragiles, c'est pourquoi le classement ne retient que les pays",
-                "assez représentés."
-              ),
-              
-              tags$li(
-                strong("Des données saisies à la main. "),
-                sprintf(
-                  "L'altitude est inconnue pour %s des lots, l'année de récolte pour %s et la méthode pour %s.",
-                  pct(is.na(cafe$altitude)),
-                  pct(is.na(cafe$annee)),
-                  pct(cafe$methode == "Non renseigné")
-                ),
-                "Le nettoyage de ces champs libres reste approximatif."
-              ),
-              
-              tags$li(
-                strong("Pas d'amertume. "),
-                "Ce critère n'est pas mesuré : nous utilisons l'arôme à sa place. Les notes sont de plus",
-                "subjectives, même si les dégustateurs sont formés."
-              ),
-              
-              tags$li(
-                strong("Ce qui change le goût en tasse n'y est pas. "),
-                "Torréfaction, mouture, mode de préparation, fraîcheur, marque et prix ne figurent pas",
-                "dans nos variables."
-              ),
-              
-              tags$li(
-                strong("Un indicateur simple, pas une prédiction. "),
-                "La compatibilité compare vos goûts à des profils moyens par pays ; elle n'a pas été",
-                "validée comme modèle prédictif et ne prouve aucune causalité."
-              ),
-              
-              tags$li(
-                strong("Un conseiller IA à prendre avec recul. "),
-                "Le modèle de langage ne reçoit que des résultats statistiques, mais son texte est une",
-                "interprétation : il peut varier d'un essai à l'autre et dépend du modèle choisi."
-              ),
-              
-              tags$li(
-                strong("Une carte simplifiée. "),
-                "Au 1:110 millions, les petits territoires et îles n'apparaissent pas, et Hawaï est",
-                "rattaché aux États-Unis."
-              )
-            )
-          )
-        ),
+        tabPanel("Accueil", value = "accueil",
+                 br(),
+                 div(class = "page-accueil",
+                     h3("Le projet"),
+                     p("Au supermarché, le choix d'un café repose sur peu d'indications : un pays, parfois",
+                       "la mention « arabica ». Cette application traduit les notes de dégustateurs",
+                       "professionnels en repères simples (sucré, acide, aromatique, corsé) pour vous aider",
+                       "à choisir : explorez la carte, comparez les profils de goût, puis décrivez vos envies."),
+                     
+                     h3("Le jeu de données"),
+                     p(sprintf("%s lots de café évalués par des dégustateurs certifiés du Coffee Quality Institute",
+                               format(nrow(cafe), big.mark = " ")),
+                       sprintf("(version de mai 2023, Kaggle), issus de %d pays et récoltés entre %s.",
+                               length(pays_liste), txt_periode),
+                       "Chaque ligne du jeu est un lot de café, décrit par sa provenance, son mode de production",
+                       "et les notes que lui ont données les dégustateurs."),
+                     
+                     h3("Les variables utilisées"),
+                     tableOutput("acc_variables"),
+                     
+                     h3("À garder en tête"),
+                     tags$ul(
+                       tags$li("Ce sont surtout des cafés de spécialité : les scores sont des repères relatifs",
+                               "entre pays, pas la note d'un paquet de supermarché."),
+                       tags$li(sprintf("Le pays est une échelle large, et les données sont incomplètes (altitude inconnue pour %s des lots, méthode pour %s).",
+                                       pct(is.na(cafe$altitude)), pct(cafe$methode == "Non renseigné"))),
+                       tags$li("L'amertume n'est pas mesurée : l'arôme la remplace. Le texte du conseiller IA",
+                               "est une interprétation, pas un résultat.")))),
         
         tabPanel(
           "Carte",
@@ -1460,11 +1223,24 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
   
-  output$acc_variables <- renderTable(
-    VARIABLES,
-    striped = TRUE,
-    spacing = "s"
-  )
+  output$acc_variables <- renderTable({
+    data.frame(
+      Variable = c("Score total (Total Cup Points)", "Critères sensoriels", "Pays d'origine",
+                   "Altitude", "Année de récolte", "Méthode de production", "Compatibilité"),
+      Définition = c(
+        "La note globale d'un lot : la somme des notes des dégustateurs.",
+        paste0("Les notes de goût du lot : ", paste(unname(ATTR_LAB[attr_cols]), collapse = ", "),
+               ". Nous mettons en avant quatre axes : sucré, acide, arôme et corps."),
+        "Le pays où le café a été cultivé.",
+        "L'altitude de la plantation (moyenne quand elle est donnée en fourchette).",
+        "L'année de la récolte.",
+        "Le traitement des cerises après la récolte : lavé, nature (séchage de la cerise entière), semi-lavé, honey / pulped natural.",
+        "Calculée par l'application : proximité entre vos goûts et le profil moyen d'un pays."),
+      Échelle = c("environ 0 à 100 ; 80 et plus : café de spécialité", "0 à 10 par critère",
+                  "texte", "mètres", "année", "catégories",
+                  "0 à 100, relative : 100 = pays le plus proche de vos goûts"),
+      check.names = FALSE)
+  }, striped = TRUE, spacing = "s")
   
   showModal(
     modalDialog(
@@ -1511,6 +1287,13 @@ server <- function(input, output, session) {
         d$espece %in% input$f_esp,
     ]
   })
+  
+  # critères utilisables pour la corrélation : ceux qui ne sont pas constants
+  cols_corr <- attr_cols[vapply(attr_cols, function(a)
+    isTRUE(sd(cafe[[a]], na.rm = TRUE) > 0), logical(1))]
+  if (length(cols_corr) < length(attr_cols))
+    message("Critères exclus de la matrice (constants) : ",
+            paste(setdiff(attr_cols, cols_corr), collapse = ", "))
   
   output$n_lots <- renderText(
     sprintf(

@@ -1338,6 +1338,8 @@ ui <- fluidPage(
               uiOutput("mots")
             )
           ),
+          h4("Un profil par pays"),
+          uiOutput("radars_pays"),
           
           helpText(
             "Le profil est calculé sur les lots filtrés à gauche.",
@@ -1865,6 +1867,34 @@ server <- function(input, output, session) {
       legend = list(orientation = "h")
     ) |>
       theme_cafe()
+  })
+  
+  # un radar par pays sur la même échelle, pour rester comparables
+  COUL_PAYS <- c("#6f4e37", "#c27c3c", "#7d8a5b", "#a8503f")
+  output$radars_pays <- renderUI({
+    n <- length(input$s_pays); req(n > 0)
+    fluidRow(lapply(seq_len(n), function(k)
+      column(12 / n, plotlyOutput(paste0("radar_", k), height = 320))))
+  })
+  for (k in 1:4) local({
+    kk <- k
+    output[[paste0("radar_", kk)]] <- renderPlotly({
+      pays <- input$s_pays; req(length(pays) >= kk)
+      d <- filtre(); cols <- if (input$s_tous) attr_cols else KEY
+      labs <- unname(ATTR_LAB[cols])
+      moy <- lapply(pays, function(p) colMeans(d[d$pays == p, cols, drop = FALSE], na.rm = TRUE))
+      toutes <- unlist(moy); toutes <- toutes[is.finite(toutes)]
+      req(length(toutes) > 0)
+      m <- moy[[kk]]
+      plot_ly(type = "scatterpolar", mode = "lines+markers", fill = "toself",
+              r = c(m, m[1]), theta = c(labs, labs[1]), name = pays[kk],
+              line = list(color = COUL_PAYS[kk])) |>
+        layout(title = list(text = pays[kk], x = 0.5), margin = list(t = 60),
+               showlegend = FALSE,
+               polar = list(radialaxis = list(range = c(floor(min(toutes) * 2) / 2 - 0.5,
+                                                        ceiling(max(toutes) * 2) / 2 + 0.25)))) |>
+        theme_cafe()
+    })
   })
   
   output$mots <- renderUI({

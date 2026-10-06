@@ -943,6 +943,18 @@ names(VARIABLES) <- c(
   "Échelle ou valeurs"
 )
 
+PHRASES_CAFE <- c(
+  "Un café doux et sucré pour le matin",
+  "Un café fruité et acidulé, à boire sans lait",
+  "Un café corsé et rond pour l'après-repas",
+  "Un café très aromatique pour le week-end",
+  "Un café équilibré, facile à boire tous les jours",
+  "Un café peu acide, tout en rondeur",
+  "Un café d'exception, très bien noté",
+  "Un café lavé, net et frais",
+  "Un café nature, fruité et sucré",
+  "Un café léger et délicat, pas trop corsé")
+
 # ---- 4. INTERFACE -------------------------------------------------------------
 
 # NOM EXACT DU FICHIER PNG DANS www/
@@ -1302,13 +1314,11 @@ ui <- fluidPage(
           value = "sens",
           br(),
           
-          selectizeInput(
-            "s_pays",
-            "Comparer jusqu'à 4 pays",
-            pays_liste,
-            multiple = TRUE,
-            options = list(maxItems = 4)
-          ),
+          selectizeInput("s_pays",
+                         "Choisissez de 1 à 4 pays pour comparer leur profil de goût :",
+                         pays_liste, multiple = TRUE,
+                         options = list(maxItems = 4,
+                                        placeholder = "Cliquez ici, puis tapez un nom de pays")),
           
           checkboxInput(
             "s_tous",
@@ -1345,13 +1355,12 @@ ui <- fluidPage(
           wellPanel(
             h4("Dites-moi ce que vous aimez"),
             
-            textAreaInput(
-              "c_texte",
-              NULL,
-              rows = 3,
-              width = "100%",
-              placeholder = "Ex. : un café doux et fruité pour le petit-déjeuner, pas trop acide..."
-            ),
+            selectizeInput("c_texte", NULL, choices = PHRASES_CAFE, width = "100%",
+                           options = list(
+                             create = TRUE, createOnBlur = TRUE, persist = FALSE, maxOptions = 8,
+                             placeholder = "Tapez vos envies ou choisissez une suggestion...",
+                             onInitialize = I('function() { this.setValue(""); }'),
+                             render = I('{ option_create: function(data, escape) { return "<div>Utiliser : <strong>" + escape(data.input) + "</strong></div>"; } }'))),
             
             fluidRow(
               column(

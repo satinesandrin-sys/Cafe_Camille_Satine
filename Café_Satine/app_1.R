@@ -837,7 +837,6 @@ CHIFFRES <- tags$ul(
 )
 
 
-
 PHRASES_CAFE <- c(
   "Un café doux et sucré pour le matin",
   "Un café fruité et acidulé, à boire sans lait",
@@ -1037,8 +1036,7 @@ ui <- fluidPage(
                                "entre pays, pas la note d'un paquet de supermarché."),
                        tags$li(sprintf("Le pays est une échelle large, et les données sont incomplètes (altitude inconnue pour %s des lots, méthode pour %s).",
                                        pct(is.na(cafe$altitude)), pct(cafe$methode == "Non renseigné"))),
-                       tags$li("L'amertume n'est pas mesurée : l'arôme la remplace. Le texte du conseiller IA",
-                               "est une interprétation, pas un résultat.")))),
+                       tags$li("Le texte du conseiller IA est une interprétation des résultats, pas un résultat.")))),
         
         tabPanel(
           "Carte",
@@ -1106,7 +1104,6 @@ ui <- fluidPage(
           
           helpText(
             "Le profil est calculé sur les lots filtrés à gauche.",
-            "L'amertume n'est pas mesurée dans les données CQI : on regarde l'arôme à la place.",
             "Les notes vont de 0 à 10 ; l'axe du radar est zoomé",
             "pour faire ressortir les différences."
           )
@@ -1154,7 +1151,7 @@ ui <- fluidPage(
             
             helpText(
               "L'IA règle les curseurs de gauche à partir de votre texte ;",
-              "vous pouvez ensuite les ajuster à la main. L'amertume n'est pas mesurée dans les données."
+              "vous pouvez ensuite les ajuster à la main."
             )
           ),
           
@@ -1656,8 +1653,11 @@ server <- function(input, output, session) {
   COUL_PAYS <- c("#6f4e37", "#c27c3c", "#7d8a5b", "#a8503f")
   output$radars_pays <- renderUI({
     n <- length(input$s_pays); req(n > 0)
-    fluidRow(lapply(seq_len(n), function(k)
-      column(12 / n, plotlyOutput(paste0("radar_", k), height = 320))))
+    # on découpe les pays par paires : une ligne = 2 radars au maximum
+    lignes <- unname(split(seq_len(n), ceiling(seq_len(n) / 2)))
+    tagList(lapply(lignes, function(ids)
+      fluidRow(lapply(ids, function(k)
+        column(6, plotlyOutput(paste0("radar_", k), height = 380))))))
   })
   for (k in 1:4) local({
     kk <- k
@@ -1936,8 +1936,8 @@ server <- function(input, output, session) {
       "] ou \"\" si rien n'est précisé, ",
       "\"qualite\" à true s'il veut le meilleur café possible, ",
       "et \"explication\" : une phrase en français qui reformule ce que tu as compris. ",
-      "L'amertume n'est pas mesurée : si la personne en parle, ne la traduis pas en niveau et ",
-      "dis-le dans l'explication.\n",
+      "Ne traduis en niveaux que les critères listés ci-dessus ; si la personne évoque autre chose, ",
+      "ignore-le et dis-le dans l'explication.\n",
       "Réponds uniquement par un objet JSON valide, sans aucun texte autour, de la forme ",
       gabarit
     )

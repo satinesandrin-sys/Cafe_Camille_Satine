@@ -991,8 +991,8 @@ ui <- fluidPage(
         "input.onglet == 'afdm'",
         h4("Réglages de l'AFDM"),
         checkboxInput("af_alt", "Inclure l'altitude (réduit le nombre de lots)", TRUE),
-        sliderInput("af_nmin", "Lots minimum par pays (sinon « Autres pays »)", 5, 40, 15),
-        selectInput("af_x", "Axe horizontal", setNames(1:5, paste("Dimension", 1:5)), selected = 1),
+        sliderInput("af_nmin", "Construction des axes : lots minimum par pays (sinon « Autres pays »)", 5, 40, 15),
+        sliderInput("af_naff", "Nuage de lots : afficher les pays ayant au moins N lots", 1, 20, 3),        sliderInput("af_naff", "Nuage de lots : afficher les pays ayant au moins N lots", 1, 20, 3),        selectInput("af_x", "Axe horizontal", setNames(1:5, paste("Dimension", 1:5)), selected = 1),
         selectInput("af_y", "Axe vertical", setNames(1:5, paste("Dimension", 1:5)), selected = 2),
         helpText("Le score total est une variable supplémentaire : projetée sur les axes, sans les construire.")
       ),
@@ -1166,9 +1166,10 @@ ui <- fluidPage(
             helpText("Barres foncées : variables qui contribuent plus que la moyenne (trait pointillé)."),
             
             uiOutput("af_texte"),
-            helpText("Les pays comptant peu de lots sont regroupés en « Autres pays » (curseur à gauche) et les",
-                     "lots sans méthode sont exclus. L'AFDM décrit des ressemblances : elle ne prouve aucune cause.")
-          )
+            helpText("Le premier curseur règle le regroupement utilisé pour construire les axes ; le second règle les",
+                     "pays colorés sur le nuage, les lots des autres pays restant affichés en gris. Les lots sans",
+                     "méthode sont exclus. L'AFDM décrit des ressemblances : elle ne prouve aucune cause.")
+            )
         ),
         
         tabPanel(
@@ -2277,6 +2278,7 @@ server <- function(input, output, session) {
   afdm <- reactive({
     validate(need(FACTOMINER_OK, "Installez le package FactoMineR : install.packages('FactoMineR')"))
     d <- cafe[!is.na(cafe$pays) & !is.na(cafe$score) & cafe$methode != "Non renseigné", ]
+    d$pays_detail <- d$pays
     d$pays <- regroupe(d$pays, input$af_nmin, "Autres pays")
     d$methode <- regroupe(d$methode, input$af_nmin, "Autre")
     quanti <- c(attr_cols, if (isTRUE(input$af_alt)) "altitude")
@@ -2291,7 +2293,8 @@ server <- function(input, output, session) {
     names(base) <- unname(LAB_AF[names(base)])
     res <- FactoMineR::FAMD(base, ncp = 5, sup.var = ncol(base), graph = FALSE)
     list(res = res, base = base, quali = unname(LAB_AF[quali]), quanti = unname(LAB_AF[quanti]),
-         exclues = unname(LAB_AF[setdiff(quanti_ini, quanti)]))
+         exclues = unname(LAB_AF[setdiff(quanti_ini, quanti)]),
+         pays_detail = d$pays_detail)
   })
   
   dims <- reactive({ req(input$af_x, input$af_y); c(as.integer(input$af_x), as.integer(input$af_y)) })
@@ -2311,6 +2314,7 @@ server <- function(input, output, session) {
   afdm <- reactive({
     validate(need(FACTOMINER_OK, "Installez le package FactoMineR : install.packages('FactoMineR')"))
     d <- cafe[!is.na(cafe$pays) & !is.na(cafe$score) & cafe$methode != "Non renseigné", ]
+    d$pays_detail <- d$pays
     d$pays <- regroupe(d$pays, input$af_nmin, "Autres pays")
     d$methode <- regroupe(d$methode, input$af_nmin, "Autre")
     quanti <- c(attr_cols, if (isTRUE(input$af_alt)) "altitude")
@@ -2325,7 +2329,8 @@ server <- function(input, output, session) {
     names(base) <- unname(LAB_AF[names(base)])
     res <- FactoMineR::FAMD(base, ncp = 5, sup.var = ncol(base), graph = FALSE)
     list(res = res, base = base, quali = unname(LAB_AF[quali]), quanti = unname(LAB_AF[quanti]),
-         exclues = unname(LAB_AF[setdiff(quanti_ini, quanti)]))
+         exclues = unname(LAB_AF[setdiff(quanti_ini, quanti)]),
+         pays_detail = d$pays_detail)
   })
   
   dims <- reactive({ req(input$af_x, input$af_y); c(as.integer(input$af_x), as.integer(input$af_y)) })
@@ -2379,20 +2384,31 @@ server <- function(input, output, session) {
   })
   
   # lots dans le plan : une couleur vive par pays, étiquette au centre de chaque nuage
+  # lots dans le plan : couleur selon le vrai pays (les pays très rares passent en gris)
   output$af_ind <- renderPlotly({
     a <- afdm(); res <- a$res; ax <- dims(); req(max(ax) <= ncol(res$ind$coord))
-    validate(need("Pays" %in% names(a$base),
-                  "Un seul groupe de pays subsiste : baissez le minimum de lots par pays."))
-    grp <- a$base[["Pays"]]; lv <- levels(grp)
-    cols <- setNames(rep_len(COULEURS_POP, length(lv)), lv)
-    if ("Autres pays" %in% lv) cols["Autres pays"] <- "#b8b0a5"
-    df <- data.frame(x = res$ind$coord[, ax[1]], y = res$ind$coord[, ax[2]], groupe = grp)
+    pays <- a$pays_detail
+    eff <- table(pays)
+    g <- ifelse(pays %in% names(eff)[eff >= input$af_naff], pays, "Autres pays")
+    ord <- names(sort(table(g[g != "Autres pays"]), decreasing = TRUE))
+    n_c <- length(ord)
+    pal <- if (n_c <= length(COULEURS_POP)) COULEURS_POP[seq_len(n_c)] else
+      c(COULEURS_POP, grDevices::hcl.colors(n_c - length(COULEURS_POP), "Dark 3"))
+    niveaux <- c(intersect("Autres pays", g), ord)          # le gris est tracé en premier, dessous
+    cols <- setNames(c(rep("#c9c2b8", length(niveaux) - n_c), pal), niveaux)
+    df <- data.frame(x = res$ind$coord[, ax[1]], y = res$ind$coord[, ax[2]],
+                     groupe = factor(g, levels = niveaux))
+    # étiquette au centre des nuages des pays d'au moins 10 lots
     cen <- aggregate(cbind(x, y) ~ groupe, data = df, FUN = mean)
-    plot_ly(df, x = ~x, y = ~y, color = ~groupe, colors = cols, type = "scatter", mode = "markers",
-            marker = list(size = 8, opacity = 0.8, line = list(color = "white", width = 0.6))) |>
-      add_trace(data = cen, x = ~x, y = ~y, text = ~groupe, type = "scatter", mode = "text",
-                textfont = list(size = 13, color = "#2b1a12"), showlegend = FALSE,
-                hoverinfo = "skip", inherit = FALSE) |>
+    cen <- cen[cen$groupe %in% names(eff)[eff >= 10] & cen$groupe != "Autres pays", ]
+    p <- plot_ly(df, x = ~x, y = ~y, color = ~groupe, colors = cols, type = "scatter", mode = "markers",
+                 marker = list(size = 8, opacity = 0.8, line = list(color = "white", width = 0.6)),
+                 hovertemplate = "%{fullData.name}<extra></extra>")
+    if (nrow(cen) > 0)
+      p <- add_trace(p, data = cen, x = ~x, y = ~y, text = ~as.character(groupe), type = "scatter",
+                     mode = "text", textfont = list(size = 13, color = "#2b1a12"),
+                     showlegend = FALSE, hoverinfo = "skip", inherit = FALSE)
+    p |>
       layout(xaxis = list(title = lab_dim(res, ax[1])), yaxis = list(title = lab_dim(res, ax[2])),
              legend = list(font = list(size = 11))) |>
       theme_cafe() |> config(displayModeBar = FALSE)
@@ -2417,7 +2433,7 @@ server <- function(input, output, session) {
   xmax_contrib <- reactive({ max(afdm()$res$var$contrib[, dims()]) * 1.1 })
   output$af_contrib1 <- renderPlotly({
     res <- afdm()$res; k <- dims()[1]; req(k <= ncol(res$ind$coord))
-    contrib_plot(res, k, xmax_contrib())
+    contrib_plot(res, k, max(20, max(res$var$contrib[, k]) * 1.05))
   })
   output$af_contrib2 <- renderPlotly({
     res <- afdm()$res; k <- dims()[2]; req(k <= ncol(res$ind$coord))

@@ -848,4 +848,141 @@ function(input, output, session) {
       )
     )
   })
+  # ---- AFDM ---------------------------------------------------------------------
+  afdm <- reactive({
+    validate(need(FACTOMINER_OK, "Installez le package FactoMineR : install.packages('FactoMineR')"))
+    d <- cafe[!is.na(cafe$pays) & !is.na(cafe$score) & cafe$methode != "Non renseigné", ]
+    d$pays_detail <- d$pays
+    d$pays <- regroupe(d$pays, input$af_nmin, "Autres pays")
+    d$methode <- regroupe(d$methode, input$af_nmin, "Autre")
+    quanti <- c(attr_cols, if (isTRUE(input$af_alt)) "altitude")
+    d <- d[complete.cases(d[c(quanti, "score", "pays", "methode", "espece")]), ]
+    validate(need(nrow(d) > 50, "Trop peu de lots complets : décochez l'altitude."))
+    quanti_ini <- quanti
+    quanti <- quanti[vapply(quanti, function(a) isTRUE(sd(d[[a]]) > 0), logical(1))]
+    quali <- c("pays", "methode", "espece")
+    quali <- quali[vapply(quali, function(v) length(unique(d[[v]])) > 1, logical(1))]
+    base <- d[c(quanti, quali, "score")]
+    for (v in quali) base[[v]] <- factor(base[[v]])
+    names(base) <- unname(LAB_AF[names(base)])
+    res <- FactoMineR::FAMD(base, ncp = 5, sup.var = ncol(base), graph = FALSE)
+    list(res = res, base = base, quali = unname(LAB_AF[quali]), quanti = unname(LAB_AF[quanti]),
+         exclues = unname(LAB_AF[setdiff(quanti_ini, quanti)]),
+         pays_detail = d$pays_detail)
+  })
   
+  dims <- reactive({ req(input$af_x, input$af_y); c(as.integer(input$af_x), as.integer(input$af_y)) })
+  lab_dim <- function(res, k) sprintf("Dimension %d (%.1f %%)", k, res$eig[k, 2])
+  
+  output$af_resume <- renderUI({
+    a <- afdm()
+    tags$p(strong(nrow(a$base)), " lots complets utilisés. Variables numériques : ",
+           paste(a$quanti, collapse = ", "), ". Variables qualitatives : ", paste(a$quali, collapse = ", "),
+           ". Variable supplémentaire : Score total.",
+           if (length(a$exclues)) paste0(" Exclues car constantes : ", paste(a$exclues, collapse = ", "), "."))
+  })
+  
+  # cercle des corrélations : grand, étiquettes écartées des flèches
+  output$af_cercle <- renderPlotly({
+    res <- afdm()$res; ax <- dims(); req(max(ax) <= ncol(res$ind$coord))
+    q <- as.data.frame(res$quanti.var$coord[, ax, drop = FALSE]); names(q) <- c("x", "y")
+    q$nom <- rownames(q); q$sup <- FALSE
+    v <- q
+    sup <- res$quanti.sup$coord
+    if (!is.null(sup)) {
+      s <- as.data.frame(sup[, ax, drop = FALSE]); names(s) <- c("x", "y")
+      s$nom <- rownames(s); s$sup <- TRUE
+      v <- rbind(q, s)
+    }
+    couleur <- ifelse(v$sup, "#d9480f", "#3e2415")
+    pos <- ifelse(abs(v$x) >= abs(v$y),
+                  ifelse(v$x >= 0, "middle right", "middle left"),
+                  ifelse(v$y >= 0, "top center", "bottom center"))
+    fleches <- lapply(seq_len(nrow(v)), function(i)
+      list(x = v$x[i], y = v$y[i], ax = 0, ay = 0, xref = "x", yref = "y", axref = "x", ayref = "y",
+           showarrow = TRUE, arrowhead = 2, arrowsize = 1.2, arrowwidth = 2.5, arrowcolor = couleur[i]))
+    plot_ly(v, x = ~x, y = ~y, type = "scatter", mode = "text",
+            text = paste0("<b>", v$nom, "</b>"), textposition = pos,
+            textfont = list(size = 15, color = couleur),
+            hovertext = sprintf("%s : %.2f ; %.2f", v$nom, v$x, v$y), hoverinfo = "text") |>
+      layout(shapes = list(
+        list(type = "circle", xref = "x", yref = "y", x0 = -1, y0 = -1, x1 = 1, y1 = 1,
+             line = list(color = "#b9a58c", width = 1.5)),
+        list(type = "line", x0 = -1.35, x1 = 1.35, y0 = 0, y1 = 0,
+             line = list(color = "#d9c6ad", dash = "dot")),
+        list(type = "line", x0 = 0, x1 = 0, y0 = -1.35, y1 = 1.35,
+             line = list(color = "#d9c6ad", dash = "dot"))),
+        annotations = fleches, showlegend = FALSE,
+        xaxis = list(range = c(-1.35, 1.35), title = lab_dim(res, ax[1]),
+                     zeroline = FALSE, showgrid = FALSE, tickvals = seq(-1, 1, 0.5)),
+        yaxis = list(range = c(-1.35, 1.35), title = lab_dim(res, ax[2]), scaleanchor = "x",
+                     zeroline = FALSE, showgrid = FALSE, tickvals = seq(-1, 1, 0.5)),
+        margin = list(l = 60, r = 30, t = 20, b = 60)) |>
+      theme_cafe() |> config(displayModeBar = FALSE)
+  })
+  
+  # lots dans le plan : couleur selon le vrai pays (les pays très rares passent en gris)
+  output$af_ind <- renderPlotly({
+    a <- afdm(); res <- a$res; ax <- dims(); req(max(ax) <= ncol(res$ind$coord))
+    pays <- a$pays_detail
+    eff <- table(pays)
+    g <- ifelse(pays %in% names(eff)[eff >= input$af_naff], pays, "Autres pays")
+    ord <- names(sort(table(g[g != "Autres pays"]), decreasing = TRUE))
+    n_c <- length(ord)
+    pal <- if (n_c <= length(COULEURS_POP)) COULEURS_POP[seq_len(n_c)] else
+      c(COULEURS_POP, grDevices::hcl.colors(n_c - length(COULEURS_POP), "Dark 3"))
+    niveaux <- c(intersect("Autres pays", g), ord)          # le gris est tracé en premier, dessous
+    cols <- setNames(c(rep("#c9c2b8", length(niveaux) - n_c), pal), niveaux)
+    df <- data.frame(x = res$ind$coord[, ax[1]], y = res$ind$coord[, ax[2]],
+                     groupe = factor(g, levels = niveaux))
+    # étiquette au centre des nuages des pays d'au moins 10 lots
+    cen <- aggregate(cbind(x, y) ~ groupe, data = df, FUN = mean)
+    cen <- cen[cen$groupe %in% names(eff)[eff >= 10] & cen$groupe != "Autres pays", ]
+    p <- plot_ly(df, x = ~x, y = ~y, color = ~groupe, colors = cols, type = "scatter", mode = "markers",
+                 marker = list(size = 8, opacity = 0.8, line = list(color = "white", width = 0.6)),
+                 hovertemplate = "%{fullData.name}<extra></extra>")
+    if (nrow(cen) > 0)
+      p <- add_trace(p, data = cen, x = ~x, y = ~y, text = ~as.character(groupe), type = "scatter",
+                     mode = "text", textfont = list(size = 13, color = "#2b1a12"),
+                     showlegend = FALSE, hoverinfo = "skip", inherit = FALSE)
+    p |>
+      layout(xaxis = list(title = lab_dim(res, ax[1])), yaxis = list(title = lab_dim(res, ax[2])),
+             legend = list(font = list(size = 11))) |>
+      theme_cafe() |> config(displayModeBar = FALSE)
+  })
+  
+  # contributions : une barre par variable, foncée si au-dessus de la contribution moyenne
+  contrib_plot <- function(res, k, xmax) {
+    ctr <- res$var$contrib[, k]
+    df <- data.frame(v = names(ctr), c = as.numeric(ctr)); df <- df[order(df$c), ]
+    df$v <- factor(df$v, levels = df$v)
+    seuil <- 100 / nrow(df)
+    plot_ly(df, x = ~c, y = ~v, type = "bar", orientation = "h",
+            marker = list(color = ifelse(df$c >= seuil, "#8c5a2b", "#d9c6ad")),
+            hovertemplate = "%{y} : %{x:.1f} %<extra></extra>") |>
+      layout(title = list(text = lab_dim(res, k), x = 0.5, font = list(size = 14)),
+             xaxis = list(title = "Contribution (%)", range = c(0, xmax)),
+             yaxis = list(title = ""), margin = list(t = 50),
+             shapes = list(list(type = "line", x0 = seuil, x1 = seuil, y0 = 0, y1 = 1, yref = "paper",
+                                line = list(dash = "dot", color = "#555")))) |>
+      theme_cafe() |> config(displayModeBar = FALSE)
+  }
+  xmax_contrib <- reactive({ max(afdm()$res$var$contrib[, dims()]) * 1.1 })
+  output$af_contrib1 <- renderPlotly({
+    res <- afdm()$res; k <- dims()[1]; req(k <= ncol(res$ind$coord))
+    contrib_plot(res, k, max(20, max(res$var$contrib[, k]) * 1.05))
+  })
+  output$af_contrib2 <- renderPlotly({
+    res <- afdm()$res; k <- dims()[2]; req(k <= ncol(res$ind$coord))
+    contrib_plot(res, k, xmax_contrib())
+  })
+  
+  output$af_texte <- renderUI({
+    res <- afdm()$res; ax <- dims(); req(max(ax) <= ncol(res$ind$coord))
+    phrase <- function(k) {
+      ctr <- sort(res$var$contrib[, k], decreasing = TRUE)
+      tags$p(strong(lab_dim(res, k)), " : surtout portée par ", paste(names(head(ctr, 3)), collapse = ", "), ".")
+    }
+    div(class = "encart", strong("Lecture rapide"), phrase(ax[1]), phrase(ax[2]))
+  })
+}

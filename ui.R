@@ -184,4 +184,35 @@ fluidPage(
                        tags$li(sprintf("Le pays est une échelle large, et les données sont incomplètes (altitude inconnue pour %s des lots, méthode pour %s).",
                                        pct(is.na(cafe$altitude)), pct(cafe$methode == "Non renseigné"))),
                        tags$li("Le texte du conseiller IA est une interprétation des résultats, pas un résultat.")))),
-    
+        tabPanel(
+          "Carte",
+          value = "carte",
+          br(),
+          
+          fluidRow(
+            column(
+              8,
+              selectInput(
+                "indicateur",
+                "Colorer les pays selon",
+                IND
+              )
+            ),
+            
+            column(
+              4,
+              checkboxInput(
+                "fond_osm",
+                "Afficher le fond OpenStreetMap",
+                FALSE
+              )
+            )
+          ),
+          
+          leafletOutput("carte", height = 480),
+          h4("Données utilisées par la carte"),
+          helpText("Le tableau suit les filtres de gauche et est trié selon l'indicateur choisi."),
+          div(style = "max-height: 320px; overflow-y: auto;", tableOutput("table_carte")),
+          br(),
+          uiOutput("detail_pays")),
+        

@@ -86,4 +86,217 @@ function(input, output, session) {
       )
     )
   })
+  # ---- CARTE -----------------------------------------------------------------
+  
+  output$carte <- renderLeaflet({
+    
+    leaflet(
+      options = leafletOptions(minZoom = 2)
+    ) |>
+      setView(
+        lng = 10,
+        lat = 15,
+        zoom = 2
+      )
+  })
+  
+  observeEvent(input$fond_osm, {
+    
+    proxy <- leafletProxy("carte") |>
+      clearTiles()
+    
+    if (isTRUE(input$fond_osm))
+      proxy |> addTiles()
+  })
+  
+  carte_prete <- reactiveVal(FALSE)
+  observeEvent(input$carte_bounds, carte_prete(TRUE), once = TRUE)
+  
+  observe({
+    req(carte_prete())
+    st <- stats_pays()
+    
+    proxy <- leafletProxy("carte") |>
+      clearShapes() |>
+      clearControls()
+    
+    if (is.null(st))
+      return()
+    
+    i <- match(monde$ISO_A3_EH, st$iso)
+    v <- st[[input$indicateur]][i]
+    
+    rng <- range(v, na.rm = TRUE)
+    
+    if (!is.finite(rng[1]))
+      return()
+    
+    if (diff(rng) == 0)
+      rng <- rng + c(-0.5, 0.5)
+    
+    pal <- colorNumeric(
+      c(
+        "#f2e4cf",
+        "#d2a572",
+        "#a56a35",
+        "#6b3f1f",
+        "#33190d"
+      ),
+      rng,
+      na.color = "#e9dfd0"
+    )
+    
+    
+    etiq <- ifelse(
+      is.na(i),
+      sprintf(
+        "<b>%s</b><br>pas de lot",
+        monde$NAME
+      ),
+      sprintf(
+        "<b>%s</b><br>%d lots<br>Score moyen : %.1f",
+        st$pays[i],
+        st$n[i],
+        st$score[i]
+      )
+    )
+    
+    nom_ind <- names(IND)[IND == input$indicateur]
+    
+    proxy |>
+      addPolygons(
+        data = monde,
+        layerId = ~ISO_A3_EH,
+        fillColor = pal(v),
+        fillOpacity = 0.85,
+        color = "white",
+        weight = 0.7,
+        label = lapply(etiq, HTML),
+        highlightOptions = highlightOptions(
+          weight = 2,
+          color = "#333"
+        )
+      ) |>
+      addLegend(
+        "bottomright",
+        pal = pal,
+        values = v,
+        title = nom_ind,
+        opacity = 0.9
+      )
+  })
+  
+  output$table_carte <- renderTable({
+    st <- stats_pays(); req(st)
+    st <- st[order(-st[[input$indicateur]]), ]
+    out <- data.frame(Pays = st$pays, Lots = st$n,
+                      `Score total moyen` = round(st$score, 2), check.names = FALSE)
+    for (a in attr_cols) out[[ATTR_LAB[[a]]]] <- round(st[[a]], 2)
+    out
+  }, striped = TRUE, spacing = "xs")
+  
+  pays_clic <- reactiveVal(NULL)
+  
+  observeEvent(
+    input$carte_shape_click,
+    pays_clic(input$carte_shape_click$id)
+  )
+  
+  output$detail_pays <- renderUI({
+    
+    iso <- pays_clic()
+    
+    if (is.null(iso))
+      return(
+        helpText(
+          "Cliquez sur un pays pour voir le détail de ses cafés."
+        )
+      )
+    
+    d <- d_pays()
+    
+    if (!nrow(d))
+      return(
+        helpText(
+          "Aucun lot pour ce pays avec les filtres actuels."
+        )
+      )
+    
+    tagList(
+      
+      h4(d$pays[1]),
+      
+      p(
+        sprintf(
+          "%d lots - score moyen %.1f - altitude médiane %s m",
+          nrow(d),
+          mean(d$score, na.rm = TRUE),
+          ifelse(
+            all(is.na(d$altitude)),
+            "n.d.",
+            round(median(d$altitude, na.rm = TRUE))
+          )
+        )
+      ),
+      
+      fluidRow(
+        column(
+          6,
+          plotlyOutput(
+            "hist_pays",
+            height = 260
+          )
+        ),
+        
+        column(
+          6,
+          h5("Les 10 meilleurs lots"),
+          tableOutput("top_pays")
+        )
+      )
+    )
+  })
+  
+  d_pays <- reactive({
+    d <- filtre()
+    d[
+      !is.na(d$iso) &
+        d$iso == pays_clic(),
+    ]
+  })
+  
+  output$hist_pays <- renderPlotly({
+    
+    plot_ly(
+      d_pays(),
+      x = ~score,
+      type = "histogram",
+      marker = list(color = "#8c5a2b")
+    ) |>
+      layout(
+        xaxis = list(title = "Score total"),
+        yaxis = list(title = "Lots")
+      ) |>
+      theme_cafe() |>
+      config(displayModeBar = FALSE)
+  })
+  
+  output$top_pays <- renderTable({
+    
+    d <- head(
+      d_pays()[order(-d_pays()$score), ],
+      10
+    )
+    
+    data.frame(
+      Score = round(d$score, 1),
+      Méthode = d$methode,
+      `Altitude (m)` = round(d$altitude),
+      Année = d$annee,
+      Variété = d$variete,
+      check.names = FALSE
+    )
+    
+  }, na = "n.d.", striped = TRUE, spacing = "xs")
+  
   

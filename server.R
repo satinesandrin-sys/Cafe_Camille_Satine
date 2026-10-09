@@ -355,5 +355,363 @@ function(input, output, session) {
       tags$p(strong(p), ":", phrase_gout(r$moy[[p]], r$ref),
              "(par rapport à l'ensemble des lots filtrés)")))
   })
+  # ---- CHOIX DE CAFÉ ---------------------------------------------------------
+  
+  classement <- reactive({
+    
+    for (a in KEY)
+      req(input[[paste0("c_", a)]])
+    
+    req(!is.null(input$c_meth))
+    
+    avec_meth <- nzchar(input$c_meth)
+    
+    d <- cafe[
+      !is.na(cafe$pays) &
+        !is.na(cafe$score),
+    ]
+    
+    if (avec_meth)
+      d <- d[d$methode == input$c_meth, ]
+    
+    n <- table(d$pays)
+    
+    d <- d[
+      d$pays %in%
+        names(n)[
+          n >= if (avec_meth) 5 else 10
+        ],
+    ]
+    
+    validate(
+      need(
+        nrow(d) > 0,
+        "Pas assez de lots avec ces critères."
+      )
+    )
+    
+    qual <- isTRUE(input$c_qual)
+    
+    dims <- c(
+      KEY,
+      if (qual) "score"
+    )
+    
+    moy <- aggregate(
+      d[c(KEY, "score")],
+      by = list(pays = d$pays),
+      FUN = mean,
+      na.rm = TRUE
+    )
+    
+    nb <- as.integer(
+      table(d$pays)[moy$pays]
+    )
+    
+    Z <- scale(moy[dims])
+    Z[is.na(Z)] <- 0
+    
+    cible <- c(
+      vapply(
+        KEY,
+        function(a)
+          (input[[paste0("c_", a)]] - 3) * 0.75,
+        numeric(1)
+      ),
+      if (qual) 1.5
+    )
+    
+    dist <- sqrt(
+      rowSums(
+        sweep(Z, 2, cible)^2
+      )
+    )
+    
+    out <- data.frame(
+      pays = moy$pays,
+      compat = round(
+        100 * (1 - dist / max(dist))
+      ),
+      n = nb,
+      score = moy$score
+    )
+    
+    out[order(-out$compat), ]
+  })
+  
+  output$c_classement <- renderTable({
+    
+    cl <- head(
+      classement(),
+      5
+    )
+    
+    data.frame(
+      Pays = cl$pays,
+      `Compatibilité (%)` = cl$compat,
+      `Score CQI moyen` = round(cl$score, 1),
+      check.names = FALSE
+    )
+    
+  }, striped = TRUE, spacing = "xs")
+  
+  observe({
+    
+    cl <- tryCatch(
+      classement(),
+      error = function(e) NULL
+    )
+    
+    if (!is.null(cl))
+      updateSelectInput(
+        session,
+        "c_pays",
+        choices = head(cl$pays, 5),
+        selected = cl$pays[1]
+      )
+  })
+  
+  output$c_statut <- renderText({
+    
+    invalidateLater(15000)
+    
+    paste0(
+      "NaileR : ",
+      if (NAILER_OK)
+        "installé"
+      else
+        "non installé",
+      " | Ollama : ",
+      if (ollama_actif())
+        "détecté"
+      else
+        "non détecté (lancez l'application Ollama)"
+    )
+  })
+  
+  output$c_profil <- renderUI({
+    
+    req(input$c_pays)
+    
+    m <- colMeans(
+      cafe[cafe$pays == input$c_pays, KEY],
+      na.rm = TRUE
+    )
+    
+    ref <- colMeans(
+      cafe[KEY],
+      na.rm = TRUE
+    )
+    
+    tags$p(
+      strong(input$c_pays),
+      ":",
+      phrase_gout(m, ref),
+      "(par rapport à tous les cafés ; calcul statistique, sans IA)"
+    )
+  })
+  
+  msg_interp <- reactiveVal(NULL)
+  
+  observeEvent(input$c_interp, {
+    
+    txt <- trimws(
+      paste(input$c_texte, collapse = " ")
+    )
+    
+    if (!nzchar(txt))
+      return(
+        msg_interp(
+          list(
+            erreur = "Écrivez d'abord quelques mots sur vos envies."
+          )
+        )
+      )
+    
+    if (!requireNamespace("ollamar", quietly = TRUE))
+      return(
+        msg_interp(
+          list(
+            erreur = "le package ollamar n'est pas installé (install.packages('ollamar'))."
+          )
+        )
+      )
+    
+    meths <- setdiff(
+      methodes,
+      "Non renseigné"
+    )
+    
+    gabarit <- paste0(
+      "{",
+      paste0(
+        '"',
+        KEY,
+        '":3',
+        collapse = ","
+      ),
+      ',"methode":"","qualite":false,"explication":"..."}'
+    )
+    
+    prompt <- paste0(
+      "Tu aides un consommateur à choisir un café. ",
+      "Il décrit ses envies : « ",
+      txt,
+      " ».\n",
+      "Traduis ces envies en niveaux de 1 (pas du tout) à 5 (beaucoup), ",
+      "3 = indifférent, pour : ",
+      paste0(
+        '"',
+        KEY,
+        '" (',
+        ADJ[KEY],
+        ")",
+        collapse = ", "
+      ),
+      ".\n",
+      "Indique aussi \"methode\" parmi [",
+      paste(meths, collapse = ", "),
+      "] ou \"\" si rien n'est précisé, ",
+      "\"qualite\" à true s'il veut le meilleur café possible, ",
+      "et \"explication\" : une phrase en français qui reformule ce que tu as compris. ",
+      "Ne traduis en niveaux que les critères listés ci-dessus ; si la personne évoque autre chose, ",
+      "ignore-le et dis-le dans l'explication.\n",
+      "Réponds uniquement par un objet JSON valide, sans aucun texte autour, de la forme ",
+      gabarit
+    )
+    
+    sortie <- withProgress(
+      message = "Je lis vos envies...",
+      value = 0.5,
+      
+      tryCatch(
+        ollamar::generate(
+          model = input$c_model,
+          prompt = prompt,
+          output = "text",
+          stream = FALSE
+        ),
+        error = function(e) e
+      )
+    )
+    
+    if (inherits(sortie, "error"))
+      return(
+        msg_interp(
+          list(
+            erreur = conditionMessage(sortie)
+          )
+        )
+      )
+    
+    json <- regmatches(
+      sortie,
+      regexpr(
+        "\\{[^{}]*\\}",
+        sortie
+      )
+    )
+    
+    pr <- if (length(json))
+      tryCatch(
+        jsonlite::fromJSON(json),
+        error = function(e) NULL
+      )
+    else
+      NULL
+    
+    if (is.null(pr))
+      return(
+        msg_interp(
+          list(
+            erreur = "réponse du LLM illisible, reformulez ou relancez."
+          )
+        )
+      )
+    
+    for (a in KEY) {
+      
+      v <- suppressWarnings(
+        as.integer(
+          round(
+            as.numeric(pr[[a]])
+          )
+        )
+      )
+      
+      if (
+        length(v) == 1 &&
+        !is.na(v)
+      ) {
+        updateSliderInput(
+          session,
+          paste0("c_", a),
+          value = max(
+            1,
+            min(5, v)
+          )
+        )
+      }
+    }
+    
+    m <- pr[["methode"]]
+    
+    updateSelectInput(
+      session,
+      "c_meth",
+      selected =
+        if (
+          is.character(m) &&
+          length(m) == 1 &&
+          m %in% meths
+        )
+          m
+      else
+        ""
+    )
+    
+    updateCheckboxInput(
+      session,
+      "c_qual",
+      value = isTRUE(pr[["qualite"]])
+    )
+    
+    msg_interp(
+      list(
+        texte =
+          if (
+            is.character(pr[["explication"]])
+          )
+            pr[["explication"]]
+        else
+          "Réglages mis à jour."
+      )
+    )
+  })
+  
+  output$c_interp_res <- renderUI({
+    
+    r <- msg_interp()
+    
+    req(r)
+    
+    if (!is.null(r$erreur))
+      return(
+        div(
+          class = "alert alert-danger",
+          strong("Interprétation impossible : "),
+          r$erreur,
+          br(),
+          "Vérifiez qu'Ollama est lancé et que le modèle est téléchargé."
+        )
+      )
+    
+    div(
+      class = "alert alert-success",
+      strong("J'ai compris : "),
+      r$texte,
+      " Les curseurs ont été réglés ; vous pouvez les modifier."
+    )
+  })
   
   

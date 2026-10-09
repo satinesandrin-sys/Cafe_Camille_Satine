@@ -872,8 +872,7 @@ COULEURS_POP <- c("#E6194B", "#3CB44B", "#4363D8", "#F58231", "#911EB4", "#00A6C
 
 # ---- 4. INTERFACE -------------------------------------------------------------
 
-# NOM EXACT DU FICHIER PNG DANS www/
-LOGO_INSTITUT <- "NOM_EXACT_DE_TON_PNG.png"
+LOGO_INSTITUT <- "Logo_Institut_Agro_Rennes-Angers.png"
 
 NOMS_EQUIPE <- "Camille Delage • Satine Sandrin"
 

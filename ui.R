@@ -286,4 +286,109 @@ fluidPage(
                      "méthode sont exclus. L'AFDM décrit des ressemblances : elle ne prouve aucune cause.")
           )
         ),
-        
+        tabPanel(
+          "Choix de café (conseiller IA)",
+          value = "choix",
+          br(),
+          
+          wellPanel(
+            h4("Dites-moi ce que vous aimez"),
+            
+            selectizeInput("c_texte", NULL, choices = PHRASES_CAFE, width = "100%",
+                           options = list(
+                             create = TRUE, createOnBlur = TRUE, persist = FALSE, maxOptions = 8,
+                             placeholder = "Tapez vos envies ou choisissez une suggestion...",
+                             onInitialize = I('function() { this.setValue(""); }'),
+                             render = I('{ option_create: function(data, escape) { return "<div>Utiliser : <strong>" + escape(data.input) + "</strong></div>"; } }'))),
+            
+            fluidRow(
+              column(
+                5,
+                selectizeInput(
+                  "c_model",
+                  "Modèle Ollama",
+                  modeles_ollama,
+                  selected = modeles_ollama[1],
+                  options = list(create = TRUE)
+                )
+              ),
+              
+              column(
+                7,
+                br(),
+                actionButton(
+                  "c_interp",
+                  "Interpréter mes envies",
+                  class = "btn-primary"
+                )
+              )
+            ),
+            
+            uiOutput("c_interp_res"),
+            
+            helpText(
+              "L'IA règle les curseurs de gauche à partir de votre texte ;",
+              "vous pouvez ensuite les ajuster à la main."
+            )
+          ),
+          
+          h4("Les pays qui correspondent à vos goûts"),
+          
+          tableOutput("c_classement"),
+          
+          helpText(
+            "Compatibilité relative : 100 = pays le plus proche de vos goûts, 0 = le plus éloigné."
+          ),
+          
+          hr(),
+          
+          h4("L'avis du conseiller"),
+          
+          fluidRow(
+            column(
+              4,
+              selectInput(
+                "c_pays",
+                "Pays à expliquer",
+                NULL
+              )
+            ),
+            
+            column(
+              4,
+              br(),
+              actionButton(
+                "c_go",
+                "Demander au conseiller"
+              )
+            ),
+            
+            column(
+              4,
+              br(),
+              checkboxInput(
+                "c_apercu",
+                "Voir seulement le prompt (sans LLM)",
+                FALSE
+              )
+            )
+          ),
+          
+          uiOutput("c_profil"),
+          uiOutput("c_reponse"),
+          
+          helpText(
+            textOutput("c_statut", inline = TRUE)
+          ),
+          
+          helpText(
+            "Le LLM ne reçoit que des résultats statistiques calculés dans R",
+            "(NaileR) ; son texte est une interprétation, pas un résultat.",
+            "Les lots CQI sont surtout des cafés de spécialité : les conseils",
+            "valent comme repères relatifs entre pays."
+          )
+        )
+      )
+    )
+  )
+)

@@ -151,4 +151,37 @@ fluidPage(
         )
       )
     ),
+    mainPanel(
+      width = 9,
+      
+      tabsetPanel(
+        id = "onglet",
+        
+        tabPanel("Accueil", value = "accueil",
+                 br(),
+                 div(class = "page-accueil",
+                     h3("Le projet"),
+                     p("Au supermarché, le choix d'un café repose sur peu d'indications : un pays, parfois",
+                       "la mention « arabica ». Cette application traduit les notes de dégustateurs",
+                       "professionnels en repères simples (sucré, acide, aromatique, corsé) pour vous aider",
+                       "à choisir : explorez la carte, comparez les profils de goût, puis décrivez vos envies."),
+                     
+                     h3("Le jeu de données"),
+                     p(sprintf("%s lots de café évalués par des dégustateurs certifiés du Coffee Quality Institute",
+                               format(nrow(cafe), big.mark = " ")),
+                       sprintf("(version de mai 2023, Kaggle), issus de %d pays et récoltés entre %s.",
+                               length(pays_liste), txt_periode),
+                       "Chaque ligne du jeu est un lot de café, décrit par sa provenance, son mode de production",
+                       "et les notes que lui ont données les dégustateurs."),
+                     
+                     h3("Les variables utilisées"),
+                     tableOutput("acc_variables"),
+                     
+                     h3("À garder en tête"),
+                     tags$ul(
+                       tags$li("Ce sont surtout des cafés de spécialité : les scores sont des repères relatifs",
+                               "entre pays, pas la note d'un paquet de supermarché."),
+                       tags$li(sprintf("Le pays est une échelle large, et les données sont incomplètes (altitude inconnue pour %s des lots, méthode pour %s).",
+                                       pct(is.na(cafe$altitude)), pct(cafe$methode == "Non renseigné"))),
+                       tags$li("Le texte du conseiller IA est une interprétation des résultats, pas un résultat.")))),
     

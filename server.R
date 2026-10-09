@@ -713,5 +713,139 @@ function(input, output, session) {
       " Les curseurs ont été réglés ; vous pouvez les modifier."
     )
   })
+  # ---- CONSEILLER ------------------------------------------------------------
   
+  reponse <- eventReactive(input$c_go, {
+    
+    req(input$c_pays)
+    
+    if (!NAILER_OK)
+      return(
+        list(
+          erreur = "le package NaileR n'est pas installé (devtools::install_github('Sebastien-Le/NaileR'))."
+        )
+      )
+    
+    cible <- input$c_pays
+    apercu <- isTRUE(input$c_apercu)
+    
+    txt_libre <- trimws(
+      paste(input$c_texte, collapse = " ")
+    )
+    
+    prefs <- paste(
+      vapply(
+        KEY,
+        function(a)
+          paste(
+            NIVEAUX[
+              input[[paste0("c_", a)]]
+            ],
+            ADJ[[a]]
+          ),
+        character(1)
+      ),
+      collapse = ", "
+    )
+    
+    intro <- paste0(
+      "Contexte : application d'aide au choix de café pour un consommateur de supermarché. ",
+      "Les données sont des lots de café évalués par des dégustateurs (notes de 0 à 10 par critère ; ",
+      "altitude de culture en classes ; méthode de production). Le groupe « ",
+      cible,
+      " » est comparé au groupe « Autres pays ». ",
+      "Le consommateur recherche un café : ",
+      prefs,
+      ".",
+      if (nzchar(txt_libre))
+        paste0(
+          " Il l'exprime ainsi : « ",
+          txt_libre,
+          " »."
+        )
+      else
+        ""
+    )
+    
+    demande <- paste0(
+      "À partir des seuls éléments statistiques fournis, rédige en français, pour un consommateur ",
+      "non spécialiste, un conseil de 5 à 8 lignes : décris le goût typique du café du groupe « ",
+      cible,
+      " », ce qui le distingue des autres pays, et dis s'il correspond aux goûts recherchés, ",
+      "en nuançant. Ne cite pas de chiffres techniques ni de p-values. ",
+      "N'invente rien qui ne soit pas dans les données."
+    )
+    
+    res <- withProgress(
+      message = "Le conseiller rédige sa réponse (une à deux minutes possibles)...",
+      value = 0.5,
+      
+      tryCatch(
+        appelle_nailer(
+          donnees_llm(cible),
+          intro,
+          demande,
+          input$c_model,
+          generate = !apercu
+        ),
+        error = function(e) e
+      )
+    )
+    
+    if (inherits(res, "error"))
+      return(
+        list(
+          erreur = conditionMessage(res)
+        )
+      )
+    
+    list(
+      texte = texte_nailer(
+        res,
+        if (apercu)
+          "prompt"
+        else
+          "response"
+      ),
+      apercu = apercu,
+      cible = cible
+    )
+  })
+  
+  output$c_reponse <- renderUI({
+    
+    r <- reponse()
+    
+    if (!is.null(r$erreur))
+      return(
+        div(
+          class = "alert alert-danger",
+          strong("Le conseiller n'a pas pu répondre : "),
+          r$erreur,
+          br(),
+          "Vérifiez qu'Ollama est lancé et que le modèle est téléchargé (ollama pull <modèle>)."
+        )
+      )
+    
+    if (r$apercu)
+      return(
+        tagList(
+          h5("Prompt envoyé au LLM (aucun appel effectué)"),
+          tags$pre(r$texte)
+        )
+      )
+    
+    tagList(
+      h5(
+        paste(
+          "L'avis du conseiller sur :",
+          r$cible
+        )
+      ),
+      div(
+        class = "avis-conseiller",
+        r$texte
+      )
+    )
+  })
   

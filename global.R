@@ -126,3 +126,69 @@ attr_cols <- names(ATTR_CAND)[vapply(
 )]
 
 message("Attributs sensoriels retenus : ", paste(attr_cols, collapse = ", "))
+# ---- 2. FOND DE CARTE + JOINTURE DES NOMS DE PAYS ----------------------------
+
+shp <- list.files(
+  c(".", "data"),
+  pattern = "^NaturalEarth_Map\\.shp$",
+  recursive = TRUE,
+  full.names = TRUE,
+  ignore.case = TRUE
+)[1]
+
+if (is.na(shp)) {
+  stop(
+    "Shapefile introuvable (dossier de travail : ", getwd(),
+    "). Placez NaturalEarth_Map.shp, .shx, .dbf, .prj et .cpg à côté de app.R ou dans data/."
+  )
+}
+
+monde <- st_transform(st_read(shp, quiet = TRUE), 4326)
+
+cle <- function(x)
+  gsub("[^a-z]", "", tolower(iconv(x, to = "ASCII//TRANSLIT")))
+
+recode_pays <- c(
+  "United States (Hawaii)" = "United States",
+  "Tanzania, United Republic Of" = "Tanzania",
+  "Cote d?Ivoire" = "Cote d'Ivoire"
+)
+
+nm <- st_drop_geometry(monde)
+
+colonnes_noms <- intersect(
+  c("NAME", "NAME_LONG", "ADMIN", "NAME_EN", "FORMAL_EN"),
+  names(nm)
+)
+
+dico <- unique(do.call(
+  rbind,
+  lapply(
+    colonnes_noms,
+    function(cn)
+      data.frame(
+        cle = cle(nm[[cn]]),
+        iso = nm$ISO_A3_EH,
+        stringsAsFactors = FALSE
+      )
+  )
+))
+
+dico <- dico[!duplicated(dico$cle), ]
+
+cafe$pays <- ifelse(
+  cafe$pays_brut %in% names(recode_pays),
+  recode_pays[cafe$pays_brut],
+  cafe$pays_brut
+)
+
+cafe$iso <- dico$iso[match(cle(cafe$pays), dico$cle)]
+
+non_apparies <- unique(cafe$pays_brut[is.na(cafe$iso)])
+
+if (length(non_apparies)) {
+  message(
+    "Pays SANS correspondance sur la carte (à ajouter dans recode_pays) : ",
+    paste(non_apparies, collapse = " | ")
+  )
+}

@@ -253,3 +253,37 @@ fluidPage(
             "pour faire ressortir les différences."
           )
         ),
+        tabPanel(
+          "Analyse factorielle (AFDM)",
+          value = "afdm",
+          br(),
+          div(
+            class = "page-accueil",
+            p("L'analyse factorielle de données mixtes (AFDM) résume en quelques axes les ressemblances",
+              "entre lots décrits à la fois par des variables numériques (critères sensoriels, altitude)",
+              "et qualitatives (pays, méthode, espèce)."),
+            uiOutput("af_resume"),
+            
+            h4("Cercle des corrélations"),
+            div(style = "max-width: 760px; margin: 0 auto;",
+                plotlyOutput("af_cercle", height = 640)),
+            helpText("Plus une flèche est longue et proche du cercle, mieux la variable est représentée sur ce plan.",
+                     "Deux flèches voisines vont de pair. En rouge : le score total, variable supplémentaire."),
+            
+            h4("Les lots dans le plan factoriel : une couleur par pays"),
+            plotlyOutput("af_ind", height = 560),
+            
+            h4("Contribution des variables aux deux axes"),
+            fluidRow(
+              column(6, plotlyOutput("af_contrib1", height = 360)),
+              column(6, plotlyOutput("af_contrib2", height = 360))
+            ),
+            helpText("Barres foncées : variables qui contribuent plus que la moyenne (trait pointillé)."),
+            
+            uiOutput("af_texte"),
+            helpText("Le premier curseur règle le regroupement utilisé pour construire les axes ; le second règle les",
+                     "pays colorés sur le nuage, les lots des autres pays restant affichés en gris. Les lots sans",
+                     "méthode sont exclus. L'AFDM décrit des ressemblances : elle ne prouve aucune cause.")
+          )
+        ),
+        

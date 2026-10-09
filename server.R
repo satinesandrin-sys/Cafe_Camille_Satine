@@ -298,5 +298,62 @@ function(input, output, session) {
     )
     
   }, na = "n.d.", striped = TRUE, spacing = "xs")
+  # ---- PROFIL SENSORIEL ------------------------------------------------------
+  
+  cols_sens <- reactive(if (input$s_tous) attr_cols else KEY)
+  
+  # moyennes par pays, axe commun et référence : calculés une seule fois
+  radar_data <- reactive({
+    req(length(input$s_pays) > 0)
+    d <- filtre(); cols <- cols_sens()
+    moy <- lapply(setNames(input$s_pays, input$s_pays), function(p)
+      colMeans(d[d$pays == p, cols, drop = FALSE], na.rm = TRUE))
+    v <- unlist(moy); v <- v[is.finite(v)]
+    req(length(v) > 0)
+    list(moy = moy, labs = unname(ATTR_LAB[cols]),
+         axe = c(floor(min(v) * 2) / 2 - 0.5, ceiling(max(v) * 2) / 2 + 0.25),
+         ref = colMeans(d[cols], na.rm = TRUE))
+  })
+  
+  radar_trace <- function(p, m, labs, nom, couleur = NULL)
+    add_trace(p, r = c(m, m[1]), theta = c(labs, labs[1]), name = nom,
+              line = if (!is.null(couleur)) list(color = couleur))
+  
+  output$radar <- renderPlotly({
+    r <- radar_data()
+    p <- plot_ly(type = "scatterpolar", mode = "lines+markers", fill = "toself")
+    for (k in seq_along(r$moy)) p <- radar_trace(p, r$moy[[k]], r$labs, names(r$moy)[k])
+    layout(p, polar = list(radialaxis = list(range = r$axe)),
+           legend = list(orientation = "h")) |> theme_cafe()
+  })
+  
+  # un radar par pays, deux par ligne, sur la même échelle
+  COUL_PAYS <- c("#6f4e37", "#c27c3c", "#7d8a5b", "#a8503f")
+  output$radars_pays <- renderUI({
+    n <- length(input$s_pays); req(n > 0)
+    lignes <- unname(split(seq_len(n), ceiling(seq_len(n) / 2)))
+    tagList(lapply(lignes, function(ids)
+      fluidRow(lapply(ids, function(k)
+        column(6, plotlyOutput(paste0("radar_", k), height = 380))))))
+  })
+  for (k in 1:4) local({
+    kk <- k
+    output[[paste0("radar_", kk)]] <- renderPlotly({
+      r <- radar_data(); req(length(r$moy) >= kk)
+      nom <- names(r$moy)[kk]
+      plot_ly(type = "scatterpolar", mode = "lines+markers", fill = "toself") |>
+        radar_trace(r$moy[[kk]], r$labs, nom, COUL_PAYS[kk]) |>
+        layout(title = list(text = nom, x = 0.5), margin = list(t = 60), showlegend = FALSE,
+               polar = list(radialaxis = list(range = r$axe))) |>
+        theme_cafe()
+    })
+  })
+  
+  output$mots <- renderUI({
+    r <- radar_data()
+    tagList(lapply(names(r$moy), function(p)
+      tags$p(strong(p), ":", phrase_gout(r$moy[[p]], r$ref),
+             "(par rapport à l'ensemble des lots filtrés)")))
+  })
   
   

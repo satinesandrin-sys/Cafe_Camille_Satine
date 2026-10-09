@@ -790,3 +790,21 @@ COULEURS_POP <- c("#E6194B", "#3CB44B", "#4363D8", "#F58231", "#911EB4", "#00A6C
                   "#F032E6", "#7CB518", "#008080", "#FF1493", "#9A6324", "#FFB000",
                   "#1F3A93", "#00C781", "#C2185B", "#6A1B9A", "#FF6F00", "#2E7D32",
                   "#D500F9", "#00B0FF", "#FF5252", "#795548", "#37474F", "#AEEA00")
+
+# ---- 4. INTERFACE -------------------------------------------------------------
+
+# Logo : fichier du dossier www/ (nom exact ci-dessous ; à défaut, première image trouvée hors cafe.*)
+LOGO_INSTITUT <- "logo_institut.png"
+if (!file.exists(file.path("www", LOGO_INSTITUT))) {
+  autres <- list.files("www", pattern = "\\.(png|jpe?g|svg|webp)$", ignore.case = TRUE)
+  autres <- autres[!grepl("^cafe\\.", autres, ignore.case = TRUE)]
+  LOGO_INSTITUT <- if (length(autres)) autres[1] else NA
+}
+logo <- if (!is.na(LOGO_INSTITUT)) {
+  tags$img(src = LOGO_INSTITUT, class = "logo-institut", alt = "Institut Agro Rennes-Angers")
+} else {
+  message("Logo introuvable dans www/ : déposez-y le PNG et indiquez son nom dans LOGO_INSTITUT.")
+  NULL
+}
+
+NOMS_EQUIPE <- "Camille Delage • Satine Sandrin"

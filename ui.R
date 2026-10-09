@@ -215,4 +215,41 @@ fluidPage(
           div(style = "max-height: 320px; overflow-y: auto;", tableOutput("table_carte")),
           br(),
           uiOutput("detail_pays")),
-        
+        tabPanel(
+          "Profil sensoriel",
+          value = "sens",
+          br(),
+          
+          selectizeInput("s_pays",
+                         "Choisissez de 1 à 4 pays pour comparer leur profil de goût :",
+                         pays_liste, multiple = TRUE,
+                         options = list(maxItems = 4,
+                                        placeholder = "Cliquez ici, puis tapez un nom de pays")),
+          
+          checkboxInput(
+            "s_tous",
+            "Afficher tous les critères (sinon : sucré, acide, arôme, corps)",
+            FALSE
+          ),
+          
+          fluidRow(
+            column(
+              7,
+              plotlyOutput("radar", height = 420)
+            ),
+            
+            column(
+              5,
+              h4("En quelques mots"),
+              uiOutput("mots")
+            )
+          ),
+          h4("Un profil par pays"),
+          uiOutput("radars_pays"),
+          
+          helpText(
+            "Le profil est calculé sur les lots filtrés à gauche.",
+            "Les notes vont de 0 à 10 ; l'axe du radar est zoomé",
+            "pour faire ressortir les différences."
+          )
+        ),

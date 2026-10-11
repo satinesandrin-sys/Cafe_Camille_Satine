@@ -122,7 +122,7 @@ ATTR_LAB <- c( #libellé français de chaque critère, utilisé dans les graphiq
   acidity = "Acidité",
   body = "Corps",
   balance = "Équilibre",
-  sweetness = "Douceur (sucré)"
+  sweetness = "Douceur"
 )
 
 cafe <- data.frame( # data.frame final, nettoyé et prêt à l'emploi pour l'application, une ligne = un lot de café
@@ -320,7 +320,7 @@ NOMS_LLM <- c(
   acidity = "Acidite",
   body = "Corps",
   balance = "Equilibre",
-  sweetness = "Douceur_sucre"
+  sweetness = "Douceur"
 )
 
 # donnees_llm(cible) : prépare le tableau donné à NaileR.

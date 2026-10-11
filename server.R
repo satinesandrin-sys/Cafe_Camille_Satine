@@ -1,5 +1,23 @@
+# =============================================================================
+# server.R : LOGIQUE DE L'APPLICATION
+#
+# Ce fichier renvoie UNE fonction, exécutée une fois pour chaque visiteur connecté.
+#   input   : valeurs des contrôles définis dans ui.R (ex. input$f_pays, input$indicateur)
+#   output  : zones d'affichage de ui.R que l'on remplit (ex. output$carte <- renderLeaflet(...))
+#   session : lien avec le navigateur du visiteur (modifier un contrôle, ouvrir une fenêtre)
+#
+# Principe de la réactivité :
+#   - reactive({...})  = calcul partagé, refait SEULEMENT quand un input qu'il utilise change ;
+#   - render...({...}) = fabrique le contenu d'une sortie, rafraîchi automatiquement quand ses
+#                        dépendances changent ;
+#   - observe / observeEvent = action (mise à jour d'un contrôle, dessin sur la carte...) sans
+#                        valeur renvoyée.
+#
+# Ordre du fichier : accueil et filtres -> Carte -> Profil sensoriel -> Choix de café (IA) -> AFDM
+# =============================================================================
 function(input, output, session) {
   
+  # ---- ACCUEIL : tableau « Les variables utilisées » ---------------------------
   output$acc_variables <- renderTable({
     data.frame(
       Variable = c("Score total (Total Cup Points)", "Critères sensoriels", "Pays d'origine",
@@ -19,6 +37,7 @@ function(input, output, session) {
       check.names = FALSE)
   }, striped = TRUE, spacing = "s")
   
+  # ---- FENÊTRE D'ACCUEIL --------------------------------------------------------
   showModal(
     modalDialog(
       div(
@@ -37,6 +56,7 @@ function(input, output, session) {
     )
   )
   
+  # ---- FILTRES -----------------------------------------------------------------
   filtre <- reactive({
     d <- cafe
     if (length(input$f_pays)) d <- d[d$pays %in% input$f_pays, ]
@@ -63,10 +83,10 @@ function(input, output, session) {
     updateCheckboxGroupInput(session, "f_esp", selected = unique(cafe$espece))
   })
   
-  stats_pays <- reactive({
-    
+  # ---- AGREGATION PAR PAYS ---------------------------------------------------
+  stats_pays <- reactive({ #une ligne par pays à partir des lots filtrés.
     d <- filtre()
-    d <- d[!is.na(d$iso), ]
+    d <- d[!is.na(d$iso), ] # On écarte les lots dont le pays n'a pas de correspondance sur la carte (iso manquant).
     
     if (!nrow(d))
       return(NULL)
@@ -80,14 +100,16 @@ function(input, output, session) {
             iso = x$iso[1],
             pays = x$pays[1],
             n = nrow(x),
-            score = mean(x$score, na.rm = TRUE),
+            score = mean(x$score, na.rm = TRUE), # Score total moyen du pays
             as.list(colMeans(x[attr_cols], na.rm = TRUE))
           )
       )
     )
   })
   # ---- CARTE -----------------------------------------------------------------
-  
+  # La carte se construit en deux temps :
+  #   1) output$carte crée une carte VIDE (une seule fois) ;
+  #   2) un observe() dessine puis redessine les pays par-dessus à chaque changement (filtre, indicateur)
   output$carte <- renderLeaflet({
     
     leaflet(
@@ -100,22 +122,28 @@ function(input, output, session) {
       )
   })
   
+  # Fond OpenStreetMap facultatif (gratuit, sans clé) : à chaque changement de la case, on efface les tuiles
+  # existantes (clearTiles) puis on les remet si la case est cochée (addTiles).
   observeEvent(input$fond_osm, {
-    
     proxy <- leafletProxy("carte") |>
       clearTiles()
-    
     if (isTRUE(input$fond_osm))
       proxy |> addTiles()
   })
   
+  # carte_prete : devient TRUE quand la carte existe réellement dans le navigateur.
+  # Nécessaire car la carte est dans un onglet masqué au démarrage : dessiner les pays avant sa création
+  # perdrait les ordres de dessin (carte « toute bleue »).
   carte_prete <- reactiveVal(FALSE)
+  # input$carte_bounds est renseigné par Leaflet dès que la carte est créée ; once = TRUE : réaction unique.
   observeEvent(input$carte_bounds, carte_prete(TRUE), once = TRUE)
   
+  # DESSIN DES PAYS : se relance quand les statistiques par pays (donc les filtres), l'indicateur choisi ou carte_prete changent.
   observe({
     req(carte_prete())
     st <- stats_pays()
     
+    # Efface les pays et la légende déjà dessinés, sinon les nouveaux s'empileraient sur les anciens.
     proxy <- leafletProxy("carte") |>
       clearShapes() |>
       clearControls()
@@ -123,14 +151,19 @@ function(input, output, session) {
     if (is.null(st))
       return()
     
+    # i : pour chaque polygone du fond de carte, position du pays correspondant dans st (NA = pays sans lot).
     i <- match(monde$ISO_A3_EH, st$iso)
+    # v : valeur de l'indicateur choisi (score, nombre de lots ou critère) pour chaque polygone ; NA si pas de lot.
     v <- st[[input$indicateur]][i]
     
+    # rng : étendue des valeurs, utilisée pour l'échelle de couleurs.
     rng <- range(v, na.rm = TRUE)
     
+    # Aucun lot : la carte reste sans pays.
     if (!is.finite(rng[1]))
       return()
     
+    # Une seule valeur possible : on élargit l'étendue pour que la palette fonctionne.
     if (diff(rng) == 0)
       rng <- rng + c(-0.5, 0.5)
     
@@ -146,7 +179,7 @@ function(input, output, session) {
       na.color = "#e9dfd0"
     )
     
-    
+    # Infobulle de chaque pays (HTML) : nom, nombre de lots et score moyen ; « pas de lot » si le pays est absent des données.
     etiq <- ifelse(
       is.na(i),
       sprintf(
@@ -163,16 +196,17 @@ function(input, output, session) {
     
     nom_ind <- names(IND)[IND == input$indicateur]
     
+    # Dessin : un polygone par pays du fond de carte. layerId = code ISO du pays, qui servira à identifier le pays cliqué.
     proxy |>
       addPolygons(
         data = monde,
         layerId = ~ISO_A3_EH,
-        fillColor = pal(v),
-        fillOpacity = 0.85,
+        fillColor = pal(v), #couleur de chaque pays selon sa valeur
+        fillOpacity = 0.85, #opacité
         color = "white",
-        weight = 0.7,
-        label = lapply(etiq, HTML),
-        highlightOptions = highlightOptions(
+        weight = 0.7, #color et weight : contour blanc fin
+        label = lapply(etiq, HTML),# infobulle au survol (lapply(etiq, HTML) interprète le HTML)
+        highlightOptions = highlightOptions( #contour renforcé au survol
           weight = 2,
           color = "#333"
         )
@@ -186,42 +220,47 @@ function(input, output, session) {
       )
   })
   
+  # Tableau « Données utilisées par la carte » : une ligne par pays, trié selon l'indicateur choisi (ordre décroissant).
   output$table_carte <- renderTable({
     st <- stats_pays(); req(st)
     st <- st[order(-st[[input$indicateur]]), ]
     out <- data.frame(Pays = st$pays, Lots = st$n,
-                      `Score total moyen` = round(st$score, 2), check.names = FALSE)
+                      `Score total moyen` = round(st$score, 2), check.names = FALSE) #colonnes de base
     for (a in attr_cols) out[[ATTR_LAB[[a]]]] <- round(st[[a]], 2)
     out
-  }, striped = TRUE, spacing = "xs")
-  
-  pays_clic <- reactiveVal(NULL)
+  }, striped = TRUE, spacing = "xs") #Ajoute une colonne par critère sensoriel, avec son libellé français.
+
+  pays_clic <- reactiveVal(NULL) #mémorise le pays cliqué (code ISO)
   
   observeEvent(
     input$carte_shape_click,
     pays_clic(input$carte_shape_click$id)
   )
   
+  
+  # Détail du pays cliqué, avec trois cas : aucun clic, pays sans lot sous les filtres, ou pays avec lots.
   output$detail_pays <- renderUI({
     
-    iso <- pays_clic()
+    iso <- pays_clic() # Code ISO du pays cliqué.
     
-    if (is.null(iso))
+    if (is.null(iso)) # Aucun clic : invitation à cliquer.
       return(
         helpText(
           "Cliquez sur un pays pour voir le détail de ses cafés."
         )
       )
     
-    d <- d_pays()
+    d <- d_pays() # Lots du pays cliqué sous les filtres actuels.
     
-    if (!nrow(d))
+    if (!nrow(d))  # Le pays n'a aucun lot avec les filtres actuels.
       return(
         helpText(
           "Aucun lot pour ce pays avec les filtres actuels."
         )
       )
     
+    # Cas normal : titre, ligne de synthèse (lots, score moyen, altitude médiane), puis histogramme (gauche)
+    # et dix meilleurs lots (droite).
     tagList(
       
       h4(d$pays[1]),
@@ -257,6 +296,7 @@ function(input, output, session) {
     )
   })
   
+  # d_pays : lots du pays cliqué sous les filtres ; partagé par detail_pays, hist_pays et top_pays.
   d_pays <- reactive({
     d <- filtre()
     d[
@@ -265,6 +305,7 @@ function(input, output, session) {
     ]
   })
   
+  # Histogramme des scores totaux des lots du pays cliqué.
   output$hist_pays <- renderPlotly({
     
     plot_ly(
@@ -281,6 +322,7 @@ function(input, output, session) {
       config(displayModeBar = FALSE)
   })
   
+  # Dix meilleurs lots du pays (score décroissant) ; na = "n.d." affiche les valeurs manquantes.
   output$top_pays <- renderTable({
     
     d <- head(
@@ -298,8 +340,8 @@ function(input, output, session) {
     )
     
   }, na = "n.d.", striped = TRUE, spacing = "xs")
-  # ---- PROFIL SENSORIEL ------------------------------------------------------
   
+  # ---- PROFIL SENSORIEL ------------------------------------------------------
   cols_sens <- reactive(if (input$s_tous) attr_cols else KEY)
   
   # moyennes par pays, axe commun et référence : calculés une seule fois
@@ -319,6 +361,7 @@ function(input, output, session) {
     add_trace(p, r = c(m, m[1]), theta = c(labs, labs[1]), name = nom,
               line = if (!is.null(couleur)) list(color = couleur))
   
+  # Radar combiné : un graphique avec une courbe par pays choisi.
   output$radar <- renderPlotly({
     r <- radar_data()
     p <- plot_ly(type = "scatterpolar", mode = "lines+markers", fill = "toself")
@@ -327,7 +370,6 @@ function(input, output, session) {
            legend = list(orientation = "h")) |> theme_cafe()
   })
   
-  # un radar par pays, deux par ligne, sur la même échelle
   COUL_PAYS <- c("#6f4e37", "#c27c3c", "#7d8a5b", "#a8503f")
   output$radars_pays <- renderUI({
     n <- length(input$s_pays); req(n > 0)
@@ -336,6 +378,7 @@ function(input, output, session) {
       fluidRow(lapply(ids, function(k)
         column(6, plotlyOutput(paste0("radar_", k), height = 380))))))
   })
+  # Crée les sorties radar_1 à radar_4. local() fige la valeur de k pour chaque sortie
   for (k in 1:4) local({
     kk <- k
     output[[paste0("radar_", kk)]] <- renderPlotly({
@@ -349,14 +392,15 @@ function(input, output, session) {
     })
   })
   
+  # « En quelques mots » : une phrase par pays (phrase_gout de global.R), comparée à l'ensemble des lots filtrés.
   output$mots <- renderUI({
     r <- radar_data()
     tagList(lapply(names(r$moy), function(p)
       tags$p(strong(p), ":", phrase_gout(r$moy[[p]], r$ref),
              "(par rapport à l'ensemble des lots filtrés)")))
   })
-  # ---- CHOIX DE CAFÉ ---------------------------------------------------------
   
+  # ---- CHOIX DE CAFÉ ---------------------------------------------------------
   classement <- reactive({
     
     for (a in KEY)
@@ -366,7 +410,7 @@ function(input, output, session) {
     
     avec_meth <- nzchar(input$c_meth)
     
-    d <- cafe[
+    d <- cafe[  # Lots dont le pays et le score sont connus.
       !is.na(cafe$pays) &
         !is.na(cafe$score),
     ]
@@ -376,28 +420,28 @@ function(input, output, session) {
     
     n <- table(d$pays)
     
-    d <- d[
+    d <- d[ # Seuls les pays assez fournis sont classés : 10 lots, ou 5 si une méthode est imposée (l'échantillon est plus petit).
       d$pays %in%
         names(n)[
           n >= if (avec_meth) 5 else 10
         ],
     ]
     
-    validate(
+    validate( # Message affiché à la place du tableau s'il ne reste aucun lot.
       need(
         nrow(d) > 0,
         "Pas assez de lots avec ces critères."
       )
     )
     
-    qual <- isTRUE(input$c_qual)
+    qual <- isTRUE(input$c_qual) #la case « Privilégier les cafés les mieux notés » est-elle cochée ?
     
-    dims <- c(
+    dims <- c( #Dimensions du calcul : les 4 axes, plus le score total si qual.
       KEY,
       if (qual) "score"
     )
     
-    moy <- aggregate(
+    moy <- aggregate( # Moyenne par pays des 4 axes et du score total.
       d[c(KEY, "score")],
       by = list(pays = d$pays),
       FUN = mean,
@@ -408,10 +452,10 @@ function(input, output, session) {
       table(d$pays)[moy$pays]
     )
     
-    Z <- scale(moy[dims])
+    Z <- scale(moy[dims]) # Standardisation entre pays (moyenne 0, écart-type 1 par colonne)
     Z[is.na(Z)] <- 0
     
-    cible <- c(
+    cible <- c( #position souhaitée, en écarts-types entre pays : (niveau - 3) * 0.75.
       vapply(
         KEY,
         function(a)
@@ -421,12 +465,14 @@ function(input, output, session) {
       if (qual) 1.5
     )
     
+    # Distance euclidienne de chaque pays à la cible (sweep soustrait la cible à chaque ligne de Z).
     dist <- sqrt(
       rowSums(
         sweep(Z, 2, cible)^2
       )
     )
     
+    # Compatibilité relative : 100 pour le pays le plus proche, 0 pour le plus éloigné parmi les pays comparés.
     out <- data.frame(
       pays = moy$pays,
       compat = round(
@@ -435,10 +481,10 @@ function(input, output, session) {
       n = nb,
       score = moy$score
     )
-    
-    out[order(-out$compat), ]
+    out[order(-out$compat), ]# Tri décroissant par compatibilité.
   })
   
+  # Tableau des 5 meilleurs pays (sans nombre de lots).
   output$c_classement <- renderTable({
     
     cl <- head(
@@ -455,6 +501,7 @@ function(input, output, session) {
     
   }, striped = TRUE, spacing = "xs")
   
+  # Remplit la liste « Pays à expliquer » avec les 5 meilleurs pays
   observe({
     
     cl <- tryCatch(
@@ -489,6 +536,7 @@ function(input, output, session) {
     )
   })
   
+  # Profil du pays choisi en mots, calculé sans IA : c'est la « preuve » affichée avant l'avis du LLM.
   output$c_profil <- renderUI({
     
     req(input$c_pays)
@@ -513,13 +561,14 @@ function(input, output, session) {
   
   msg_interp <- reactiveVal(NULL)
   
+  # INTERPRÉTATION DES ENVIES (LLM n°1, via ollamar) : se déclenche au clic sur « Interpréter mes envies ».
   observeEvent(input$c_interp, {
     
     txt <- trimws(
       paste(input$c_texte, collapse = " ")
-    )
+    ) #texte de l'utilisateur, sans espaces superflus.
     
-    if (!nzchar(txt))
+    if (!nzchar(txt)) #texte vide : message d'erreur et arrêt (return).
       return(
         msg_interp(
           list(
@@ -528,7 +577,7 @@ function(input, output, session) {
         )
       )
     
-    if (!requireNamespace("ollamar", quietly = TRUE))
+    if (!requireNamespace("ollamar", quietly = TRUE)) # Package ollamar absent : message d'erreur.
       return(
         msg_interp(
           list(
@@ -537,12 +586,12 @@ function(input, output, session) {
         )
       )
     
-    meths <- setdiff(
+    meths <- setdiff(  # Méthodes que le LLM peut proposer (sans « Non renseigné »)
       methodes,
       "Non renseigné"
     )
     
-    gabarit <- paste0(
+    gabarit <- paste0( #exemple de JSON attendu, montré au LLM pour cadrer sa réponse
       "{",
       paste0(
         '"',
@@ -551,8 +600,9 @@ function(input, output, session) {
         collapse = ","
       ),
       ',"methode":"","qualite":false,"explication":"..."}'
-    )
+    ) # un niveau par axe (3 par défaut), la méthode, la qualité et une explication.
     
+    # Prompt envoyé au LLM : contexte, texte de l'utilisateur, consigne de traduction en niveaux de 1 à 5.
     prompt <- paste0(
       "Tu aides un consommateur à choisir un café. ",
       "Il décrit ses envies : « ",
@@ -580,6 +630,8 @@ function(input, output, session) {
       gabarit
     )
     
+    # Appel du LLM local avec le modèle choisi. withProgress affiche une barre d'attente ;
+    # tryCatch capture les erreurs (Ollama éteint, modèle absent) au lieu de faire planter l'application.
     sortie <- withProgress(
       message = "Je lis vos envies...",
       value = 0.5,
@@ -604,6 +656,7 @@ function(input, output, session) {
         )
       )
     
+    # Extraction du JSON : premier bloc { ... } sans accolade imbriquée (le LLM peut ajouter du texte autour).
     json <- regmatches(
       sortie,
       regexpr(
@@ -612,6 +665,7 @@ function(input, output, session) {
       )
     )
     
+    # Lecture du JSON ; NULL si le texte est illisible.
     pr <- if (length(json))
       tryCatch(
         jsonlite::fromJSON(json),
@@ -628,7 +682,7 @@ function(input, output, session) {
           )
         )
       )
-    
+    # Pour chaque axe : le niveau renvoyé est arrondi en entier
     for (a in KEY) {
       
       v <- suppressWarnings(
@@ -654,6 +708,7 @@ function(input, output, session) {
       }
     }
     
+    # Méthode : appliquée seulement si elle fait partie des méthodes proposées ; sinon « Peu importe ».
     m <- pr[["methode"]]
     
     updateSelectInput(
@@ -670,12 +725,14 @@ function(input, output, session) {
         ""
     )
     
+    # Case « Privilégier les cafés les mieux notés » cochée si le LLM renvoie qualite = true.
     updateCheckboxInput(
       session,
       "c_qual",
       value = isTRUE(pr[["qualite"]])
     )
     
+    # Message de réussite : l'explication fournie par le LLM, ou un texte par défaut.
     msg_interp(
       list(
         texte =
@@ -689,6 +746,7 @@ function(input, output, session) {
     )
   })
   
+  # Affichage du message d'interprétation : rouge (erreur) ou vert (réussite).
   output$c_interp_res <- renderUI({
     
     r <- msg_interp()
@@ -713,27 +771,27 @@ function(input, output, session) {
       " Les curseurs ont été réglés ; vous pouvez les modifier."
     )
   })
-  # ---- CONSEILLER ------------------------------------------------------------
   
-  reponse <- eventReactive(input$c_go, {
+  # ---- CONSEILLER ------------------------------------------------------------
+  reponse <- eventReactive(input$c_go, { # lancement seulement si l'utilisateur clic le bouton
     
-    req(input$c_pays)
+    req(input$c_pays) # Un pays doit être choisi.
     
-    if (!NAILER_OK)
+    if (!NAILER_OK) # NaileR absent : message d'erreur.
       return(
         list(
           erreur = "le package NaileR n'est pas installé (devtools::install_github('Sebastien-Le/NaileR'))."
         )
       )
     
-    cible <- input$c_pays
-    apercu <- isTRUE(input$c_apercu)
+    cible <- input$c_pays # Pays à expliquer 
+    apercu <- isTRUE(input$c_apercu) # mode « voir seulement le prompt »
     
-    txt_libre <- trimws(
+    txt_libre <- trimws( # Phrase libre éventuellement saisie par l'utilisateur.
       paste(input$c_texte, collapse = " ")
     )
     
-    prefs <- paste(
+    prefs <- paste( #goûts réglés par les curseurs, en mots (ex. « très sucré, peu acide, ... »)
       vapply(
         KEY,
         function(a)
@@ -748,6 +806,7 @@ function(input, output, session) {
       collapse = ", "
     )
     
+    # intro : contexte donné au LLM (nature des données, groupes comparés, goûts et phrase libre du consommateur).
     intro <- paste0(
       "Contexte : application d'aide au choix de café pour un consommateur de supermarché. ",
       "Les données sont des lots de café évalués par des dégustateurs (notes de 0 à 10 par critère ; ",
@@ -767,6 +826,7 @@ function(input, output, session) {
         ""
     )
     
+    # demande : consigne de rédaction (français, 5 à 8 lignes, non spécialiste, sans chiffres techniques, sans rien inventer).
     demande <- paste0(
       "À partir des seuls éléments statistiques fournis, rédige en français, pour un consommateur ",
       "non spécialiste, un conseil de 5 à 8 lignes : décris le goût typique du café du groupe « ",
@@ -776,6 +836,7 @@ function(input, output, session) {
       "N'invente rien qui ne soit pas dans les données."
     )
     
+    # Appel de NaileR : donnees_llm prépare les données (pays choisi contre autres pays)
     res <- withProgress(
       message = "Le conseiller rédige sa réponse (une à deux minutes possibles)...",
       value = 0.5,
@@ -799,6 +860,7 @@ function(input, output, session) {
         )
       )
     
+    # Résultat : texte (réponse du LLM, ou prompt en mode aperçu) et indicateurs d'affichage.
     list(
       texte = texte_nailer(
         res,
@@ -812,6 +874,7 @@ function(input, output, session) {
     )
   })
   
+  # Affichage : erreur (rouge), prompt en mode aperçu, ou avis du conseiller (encadré).
   output$c_reponse <- renderUI({
     
     r <- reponse()
@@ -851,18 +914,23 @@ function(input, output, session) {
   # ---- AFDM ---------------------------------------------------------------------
   afdm <- reactive({
     validate(need(FACTOMINER_OK, "Installez le package FactoMineR : install.packages('FactoMineR')"))
+    # Lots avec pays, score et méthode connus (sans méthode : exclus pour ne pas créer une modalité artificielle).
     d <- cafe[!is.na(cafe$pays) & !is.na(cafe$score) & cafe$methode != "Non renseigné", ]
     d$pays_detail <- d$pays
     d$pays <- regroupe(d$pays, input$af_nmin, "Autres pays")
     d$methode <- regroupe(d$methode, input$af_nmin, "Autre")
+    # Variables numériques actives : critères sensoriels, plus l'altitude si la case est cochée.
     quanti <- c(attr_cols, if (isTRUE(input$af_alt)) "altitude")
     d <- d[complete.cases(d[c(quanti, "score", "pays", "methode", "espece")]), ]
     validate(need(nrow(d) > 50, "Trop peu de lots complets : décochez l'altitude."))
     quanti_ini <- quanti
     quanti <- quanti[vapply(quanti, function(a) isTRUE(sd(d[[a]]) > 0), logical(1))]
+    # Variables qualitatives : pays, méthode, espèce ; une variable à une seule modalité est retirée.
     quali <- c("pays", "methode", "espece")
     quali <- quali[vapply(quali, function(v) length(unique(d[[v]])) > 1, logical(1))]
+    # Tableau analysé : variables numériques, qualitatives, puis le score total EN DERNIER (variable supplémentaire).
     base <- d[c(quanti, quali, "score")]
+    # Les variables qualitatives doivent être des facteurs.
     for (v in quali) base[[v]] <- factor(base[[v]])
     names(base) <- unname(LAB_AF[names(base)])
     res <- FactoMineR::FAMD(base, ncp = 5, sup.var = ncol(base), graph = FALSE)
@@ -874,6 +942,7 @@ function(input, output, session) {
   dims <- reactive({ req(input$af_x, input$af_y); c(as.integer(input$af_x), as.integer(input$af_y)) })
   lab_dim <- function(res, k) sprintf("Dimension %d (%.1f %%)", k, res$eig[k, 2])
   
+  # Résumé affiché en haut de l'onglet : nombre de lots et variables utilisées.
   output$af_resume <- renderUI({
     a <- afdm()
     tags$p(strong(nrow(a$base)), " lots complets utilisés. Variables numériques : ",
@@ -977,6 +1046,7 @@ function(input, output, session) {
     contrib_plot(res, k, xmax_contrib())
   })
   
+  # Lecture rapide : pour chaque axe, les 3 variables qui contribuent le plus.
   output$af_texte <- renderUI({
     res <- afdm()$res; ax <- dims(); req(max(ax) <= ncol(res$ind$coord))
     phrase <- function(k) {

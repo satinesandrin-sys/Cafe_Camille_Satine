@@ -1,40 +1,66 @@
 # =============================================================================
-# Choisir son café : carte, profil sensoriel, AFDM, conseiller IA
-# Données : Coffee Quality Data (CQI, mai 2023) - Kaggle fatihb/coffee-quality-data-cqi
-# Fond de carte : Natural Earth 110m (shapefile fourni)
+# CHOISIR SON CAFÉ  -  global.R
+# Application R Shiny : carte interactive, profil sensoriel, AFDM, conseiller IA.
 #
-# Arborescence attendue :
-#   app.R
-#   data/            <- les CSV café
-#   www/             <- logo PNG
+# SOURCES
+#   Données  : Coffee Quality Data (CQI, mai 2023) - Kaggle fatihb/coffee-quality-data-cqi
+#   Carte    : Natural Earth, échelle 1:110 millions (shapefile NaturalEarth_Map.)
 #
-# Packages : shiny, leaflet, sf, plotly, dplyr
-# Conseiller IA : NaileR + ollamar + Ollama local
-# =============================================================================
+# ARBORESCENCE ATTENDUE
+#   global.R, ui.R, server.R
+#   data/  <- CSV du café + shapefile du fond de carte
+#   www/   <- logo (PNG) et, en option, cafe.jpg (image de la fenêtre d'accueil)
+#
+#
+# PLAN DU FICHIER
+#   1. Lecture et nettoyage du CSV         
+#   2. Fond de carte et jointure des noms de pays
+#   3. Paramètres de l'interface           
+#   4. Conseiller IA (NaileR / Ollama)
+#   5. Habillage (CSS, image, graphiques)  
+#   6. Éléments de la page d'accueil
+#   7. Outils de l'AFDM                    
+#   8. Logo
+# ==============================================================================  
 
+# Chargement des packages  :
+#   shiny   = framework de l'application (entrées, sorties, réactivité, balises HTML)
+#   leaflet = carte interactive      
+#   sf    = lecture et manipulation du fond de carte
+#   plotly  = graphiques interactifs (radars, nuage de lots, contributions ; fournit aussi layout())
+#   dplyr   = bind_rows() et case_when() pour le nettoyage
+#
+#   Optionnels   : FactoMineR (onglet AFDM) ; NaileR + ollamar + serveur Ollama local
+#                  (conseiller IA). Leur absence désactive seulement la fonction concernée.
 library(shiny)
 library(leaflet)
 library(sf)
 library(plotly)
 library(dplyr)
+library(FactoMineR) 
+library(NaileR)
+library(ollamar)
 
 # ---- 1. LECTURE ET NETTOYAGE DES DONNÉES ------------------------------------
 
+# Liste des CSV du dossier data pour pouvoir étendre l'application si de nouvelles données sont trouvées.
 fichiers_cafe <- list.files("data", pattern = "\\.csv$", full.names = TRUE,
                             ignore.case = TRUE)
 if (!length(fichiers_cafe)) {
   stop("Aucun CSV trouvé dans data/ : déposez-y les fichiers Kaggle CQI.")
-}
+} # Sans données, inutile de continuer : arrêt avec un message qui dit quoi faire.
 
-lire <- function(f) {
+lire <- function(f) { #f = chemin du fichier
   d <- read.csv(f, check.names = FALSE, stringsAsFactors = FALSE,
                 encoding = "UTF-8")
+  # Normalisation des noms
   names(d) <- gsub("^_|_$", "", gsub("[^a-z0-9]+", "_", tolower(names(d))))
   d$espece <- if (grepl("robusta", f, ignore.case = TRUE)) "Robusta" else "Arabica"
-  d
-}
+  d #data.frame aux noms de colonnes normalisés, avec une colonne `espece` en plus.
+} #lit UN fichier CSV et le met au format commun.
 
 brut <- bind_rows(lapply(fichiers_cafe, lire))
+# Trace en console : permet de vérifier quelles colonnes ont réellement été lues.
 message("Colonnes détectées : ", paste(names(brut), collapse = ", "))
 
 trouve <- function(candidats) {
@@ -45,7 +71,7 @@ trouve <- function(candidats) {
 num <- function(x)
   suppressWarnings(as.numeric(sub(",", ".", as.character(x))))
 
-parse_altitude <- function(x) {
+parse_altitude <- function(x) { # transforme une altitude saisie librement en moyenne numérique en mètres (ou NA si impossible).
   vapply(tolower(as.character(x)), function(s) {
     if (is.na(s)) return(NA_real_)
     n <- as.numeric(unlist(regmatches(
@@ -59,7 +85,7 @@ parse_altitude <- function(x) {
   }, numeric(1), USE.NAMES = FALSE)
 }
 
-parse_annee <- function(x) {
+parse_annee <- function(x) { #extrait l'année de récolte d'un texte libre
   x <- as.character(x)
   m <- regexpr("(19|20)[0-9]{2}", x)
   out <- rep(NA_integer_, length(x))
@@ -67,7 +93,7 @@ parse_annee <- function(x) {
   out
 }
 
-simplifie_methode <- function(x) {
+simplifie_methode <- function(x) { #regroupe les méthodes de production en 5 catégories + « Non renseigné »
   x <- tolower(trimws(as.character(x)))
   case_when(
     is.na(x) | x == "" ~ "Non renseigné",
@@ -79,7 +105,7 @@ simplifie_methode <- function(x) {
   )
 }
 
-ATTR_CAND <- list(
+ATTR_CAND <- list( #pour chaque critère sensoriel, noms de colonnes possibles dans les CSV
   aroma = "aroma",
   flavor = "flavor",
   aftertaste = "aftertaste",
@@ -89,7 +115,7 @@ ATTR_CAND <- list(
   sweetness = "sweetness"
 )
 
-ATTR_LAB <- c(
+ATTR_LAB <- c( #libellé français de chaque critère, utilisé dans les graphiques et tableaux.
   aroma = "Arôme",
   flavor = "Saveur",
   aftertaste = "Longueur en bouche",
@@ -99,7 +125,7 @@ ATTR_LAB <- c(
   sweetness = "Douceur (sucré)"
 )
 
-cafe <- data.frame(
+cafe <- data.frame( # data.frame final, nettoyé et prêt à l'emploi pour l'application, une ligne = un lot de café
   pays_brut = trimws(as.character(trouve(c("country_of_origin", "country")))),
   altitude = parse_altitude(trouve(c("altitude_mean_meters", "altitude"))),
   annee = parse_annee(trouve(c("harvest_year", "harvest"))),
@@ -110,22 +136,26 @@ cafe <- data.frame(
   stringsAsFactors = FALSE
 )
 
+# Ajout des 7 critères sensoriels : pour chacun, lecture de la 1re colonne disponible puis nettoyage.
 for (a in names(ATTR_CAND)) {
   v <- num(trouve(ATTR_CAND[[a]]))
   v[!is.na(v) & v <= 0] <- NA
   cafe[[a]] <- v
 }
 
+# Un score total inférieur à 40 est jugé aberrant (ligne mal remplie) -> NA.
 cafe$score[!is.na(cafe$score) & cafe$score < 40] <- NA
+# Les lots sans pays sont retirés : impossibles à placer sur la carte.
 cafe <- cafe[!is.na(cafe$pays_brut) & cafe$pays_brut != "", ]
 
 attr_cols <- names(ATTR_CAND)[vapply(
   names(ATTR_CAND),
   function(a) any(!is.na(cafe[[a]])),
   logical(1)
-)]
+)] #liste des critères d'évaluation de référence utilisée ensuite partout dans l'application.
 
 message("Attributs sensoriels retenus : ", paste(attr_cols, collapse = ", "))
+
 # ---- 2. FOND DE CARTE + JOINTURE DES NOMS DE PAYS ----------------------------
 
 shp <- list.files(
@@ -134,7 +164,7 @@ shp <- list.files(
   recursive = TRUE,
   full.names = TRUE,
   ignore.case = TRUE
-)[1]
+)[1] #récupération du shapefile 
 
 if (is.na(shp)) {
   stop(
@@ -148,7 +178,7 @@ monde <- st_transform(st_read(shp, quiet = TRUE), 4326)
 cle <- function(x)
   gsub("[^a-z]", "", tolower(iconv(x, to = "ASCII//TRANSLIT")))
 
-recode_pays <- c(
+recode_pays <- c( #corrections manuelles des noms du CSV qui ne correspondent à aucun nom de la carte.
   "United States (Hawaii)" = "United States",
   "Tanzania, United Republic Of" = "Tanzania",
   "Cote d?Ivoire" = "Cote d'Ivoire"
@@ -161,7 +191,7 @@ colonnes_noms <- intersect(
   names(nm)
 )
 
-dico <- unique(do.call(
+dico <- unique(do.call( # dictionnaire « clé de nom -> code ISO du pays »
   rbind,
   lapply(
     colonnes_noms,
@@ -174,15 +204,16 @@ dico <- unique(do.call(
   )
 ))
 
-dico <- dico[!duplicated(dico$cle), ]
+dico <- dico[!duplicated(dico$cle), ] # Une clé ne doit désigner qu'un seul pays : on garde la première occurrence.
 
+# `pays` = nom harmonisé : corrigé par recode_pays si nécessaire, sinon nom d'origine.
 cafe$pays <- ifelse(
   cafe$pays_brut %in% names(recode_pays),
   recode_pays[cafe$pays_brut],
   cafe$pays_brut
 )
 
-cafe$iso <- dico$iso[match(cle(cafe$pays), dico$cle)]
+cafe$iso <- dico$iso[match(cle(cafe$pays), dico$cle)] # colonne qui relie un lot à son polygone sur la carte.
 
 non_apparies <- unique(cafe$pays_brut[is.na(cafe$iso)])
 
@@ -194,20 +225,24 @@ if (length(non_apparies)) {
 }
 
 # ---- 3. PARAMÈTRES D'INTERFACE ------------------------------------------------
-
+# alt_max : borne haute du curseur d'altitude = altitude maximale arrondie aux 100 m, plafonnée à 4000 m (3000 si aucune donnée).
 alt_max <- if (any(!is.na(cafe$altitude))) min(4000, ceiling(max(cafe$altitude, na.rm = TRUE) / 100) * 100) else 3000
 
+# an_range : bornes du curseur d'année de récolte (années min et max observées).
 an_range <- if (any(!is.na(cafe$annee))) range(cafe$annee, na.rm = TRUE) else c(2010, 2023)
 
+# Listes servant aux filtres : méthodes de production et pays présents dans les données.
 methodes <- sort(unique(cafe$methode))
 pays_liste <- sort(unique(cafe$pays))
 
+# IND : indicateurs proposés pour colorer la carte (étiquette affichée = colonne ou calcul associé).
 IND <- c(
   "Score total moyen" = "score",
   "Nombre de lots" = "n",
   setNames(attr_cols, paste("Note moyenne :", ATTR_LAB[attr_cols]))
 )
 
+# MOTS : expression grand public associée à chaque critère quand un pays le dépasse nettement (voir phrase_gout).
 MOTS <- c(
   aroma = "très aromatique",
   flavor = "riche en saveurs",
@@ -218,11 +253,13 @@ MOTS <- c(
   sweetness = "douce et sucrée"
 )
 
+# KEY : les 4 axes « grand public » du profil sensoriel (douceur, acidité, arôme, corps), s'ils existent dans les données.
 KEY <- intersect(
   c("sweetness", "acidity", "aroma", "body"),
   attr_cols
 )
 
+# phrase_gout(m, ref) : décrit en mots ce qui distingue un pays de la référence, pour le profil sensoriel.
 phrase_gout <- function(m, ref) {
   ecart <- sort(m - ref, decreasing = TRUE)
   ecart <- ecart[is.finite(ecart) & ecart > 0]
@@ -237,7 +274,7 @@ phrase_gout <- function(m, ref) {
 }
 
 # ---- CONSEILLER IA ------------------------------------------------------------
-
+#Préparation des fonctions pour l'onglet « Conseiller IA » : NaileR + Ollama (si disponibles).
 NAILER_OK <- requireNamespace("NaileR", quietly = TRUE)
 
 ollama_actif <- function() {
@@ -255,6 +292,7 @@ modeles_ollama <- unique(
   c(modeles_ollama, "llama3.1", "mistral-small3.2")
 )
 
+# NIVEAUX : traduction des niveaux 1 à 5 des curseurs « Mes goûts » en mots, pour le prompt envoyé au LLM.
 NIVEAUX <- c(
   "pas du tout",
   "peu",
@@ -263,6 +301,7 @@ NIVEAUX <- c(
   "très"
 )
 
+# ADJ : adjectif décrivant chaque critère, utilisé dans les phrases adressées au LLM.
 ADJ <- c(
   sweetness = "sucré",
   acidity = "acide",
@@ -273,6 +312,7 @@ ADJ <- c(
   balance = "équilibré"
 )
 
+# NOMS_LLM : noms de colonnes sans accents ni espaces, envoyés à NaileR (plus sûrs pour le package et le LLM).
 NOMS_LLM <- c(
   aroma = "Arome",
   flavor = "Saveur",
@@ -283,6 +323,7 @@ NOMS_LLM <- c(
   sweetness = "Douceur_sucre"
 )
 
+# donnees_llm(cible) : prépare le tableau donné à NaileR.
 donnees_llm <- function(cible) {
   d <- cafe[!is.na(cafe$pays), ]
   d <- d[complete.cases(d[attr_cols]), ]
@@ -314,6 +355,7 @@ donnees_llm <- function(cible) {
   df
 }
 
+# appelle_nailer() : statistiques + rédaction par le LLM.
 appelle_nailer <- function(
     df,
     introduction,
@@ -346,6 +388,7 @@ appelle_nailer <- function(
   do.call(NaileR::nail_catdes, args)
 }
 
+# texte_nailer(res, type) : extrait le texte d'un résultat NaileR.
 texte_nailer <- function(
     res,
     type = c("response", "prompt")
@@ -372,7 +415,7 @@ texte_nailer <- function(
 }
 
 # ---- HABILLAGE ----------------------------------------------------------------
-
+# CSS_CAFE : feuille de style de toute l'application (thème café), injectée dans l'en-tête par ui.R.
 CSS_CAFE <- "
 body {
   background: #f6efe6;
@@ -382,12 +425,14 @@ body {
   line-height: 1.5;
 }
  
+/* Titres : police à empattements (Playfair Display), brun foncé */
 h1, h2, h3, h4, h5 {
   font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
   color: #3e2415;
   font-weight: 600;
 }
  
+/* Titre principal de la page : soulignement caramel */
 .container-fluid > .row:first-child h2 {
   margin: 18px 0 16px;
   padding-bottom: 10px;
@@ -395,6 +440,7 @@ h1, h2, h3, h4, h5 {
   letter-spacing: 0.3px;
 }
  
+/* Panneau latéral (« well ») : fond beige, bord fin */
 .well {
   background: #efe3d3;
   border: 1px solid #e0cfb8;
@@ -402,6 +448,7 @@ h1, h2, h3, h4, h5 {
   box-shadow: none;
 }
  
+/* Onglets : soulignement caramel sous l'onglet actif */
 .nav-tabs {
   border-bottom: 1px solid #d9c6ad;
 }
@@ -430,6 +477,7 @@ h1, h2, h3, h4, h5 {
   border-bottom: 3px solid #b9814a;
 }
  
+/* Boutons : principal = brun foncé ; secondaire = contour caramel */
 .btn {
   border-radius: 4px;
   font-weight: 600;
@@ -462,6 +510,7 @@ h1, h2, h3, h4, h5 {
 }
  
 .form-control,
+/* Champs de saisie et listes déroulantes */
 .selectize-input {
   background: #fffdf9;
   border-color: #d9c6ad;
@@ -492,6 +541,7 @@ input[type=radio] {
 }
  
 .irs-bar,
+/* Curseurs (barre, poignée, bulles de valeur) aux couleurs du thème */
 .irs--shiny .irs-bar {
   background: #b9814a;
   border-top-color: #b9814a;
@@ -516,6 +566,7 @@ input[type=radio] {
   border-color: #6f4e37;
 }
  
+/* Messages (succès / erreur) */
 .alert {
   border-radius: 6px;
 }
@@ -532,6 +583,7 @@ input[type=radio] {
   color: #5a1f14;
 }
  
+/* Tableaux : en-tête souligné, lignes alternées */
 .table > thead > tr > th {
   border-bottom: 2px solid #b9814a;
   color: #3e2415;
@@ -546,6 +598,7 @@ input[type=radio] {
   border-top: 1px solid #e6d6bf;
 }
  
+/* Textes d'aide, séparateurs, blocs de code */
 .help-block {
   color: #8a7565;
   font-size: 13px;
@@ -561,6 +614,7 @@ pre {
   color: #3b2a20;
 }
  
+/* Encadré de l'avis du conseiller IA */
 .avis-conseiller {
   white-space: pre-wrap;
   background: #fbf7f1;
@@ -569,6 +623,7 @@ pre {
   border-radius: 4px;
 }
  
+/* Carte Leaflet : fond bleu océan, bord arrondi */
 .leaflet-container {
   background: #a6cee3;
   border: 1px solid #d9c6ad;
@@ -576,6 +631,7 @@ pre {
   font-family: inherit;
 }
  
+/* Fenêtre d'accueil (modale) : ombre, apparition en zoom */
 .modal-content {
   background: #f6efe6;
   border: none;
@@ -599,6 +655,7 @@ pre {
   opacity: 1;
 }
  
+/* Bandeau supérieur : fond brun, logo à gauche, noms de l'équipe à droite ; version mobile en bas */
 .bandeau-equipe {
   background: #3b2a20;
   min-height: 82px;
@@ -644,6 +701,7 @@ pre {
   }
 }
  
+/* Contenu de la fenêtre d'accueil (image, titre, texte) */
 .accueil {
   text-align: center;
   padding: 6px 10px 0;
@@ -668,6 +726,7 @@ pre {
   margin: 0 auto;
 }
  
+/* Page d'accueil : largeur limitée, titres de section, listes */
 .page-accueil {
   max-width: 980px;
 }
@@ -682,6 +741,7 @@ pre {
   margin-bottom: 6px;
 }
  
+/* Encadré mis en avant */
 .encart {
   background: #fbf7f1;
   border-left: 4px solid #b9814a;
@@ -691,7 +751,8 @@ pre {
 }
  
 "
-
+# SVG_TASSE : illustration vectorielle (code SVG en texte) d'une tasse de café, affichée dans la fenêtre
+# d'accueil quand aucune photo cafe.* n'est fournie. Aucun fichier ni connexion nécessaire.
 SVG_TASSE <- '<svg viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Tasse de café">
 <ellipse cx="200" cy="236" rx="152" ry="26" fill="#d9c4a8"/>
 <ellipse cx="200" cy="229" rx="140" ry="22" fill="#efe3d3"/>
@@ -704,14 +765,17 @@ SVG_TASSE <- '<svg viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg" role
 <g transform="translate(348 250) rotate(20)"><ellipse rx="21" ry="13" fill="#6f4e37"/><path d="M-19 0 C-7 -6 7 6 19 0" fill="none" stroke="#3e2415" stroke-width="3"/></g>
 </svg>'
 
+# photo_accueil : nom d'une photo cafe.jpg / .png / .webp du dossier www/ (NA si absente).
 photo_accueil <- list.files(
   "www",
   pattern = "^cafe\\.(jpe?g|png|webp)$",
   ignore.case = TRUE
 )[1]
 
+# image_accueil : la photo si elle existe, sinon l'illustration SVG. Utilisée par server.R dans la fenêtre d'accueil.
 image_accueil <- if (!is.na(photo_accueil)) tags$img(src = photo_accueil, class = "accueil-img", alt = "Café") else HTML(SVG_TASSE)
 
+# theme_cafe(p) : applique la même police, la même palette et un fond transparent à un graphique plotly.
 theme_cafe <- function(p) {
   layout(
     p,
@@ -732,13 +796,17 @@ theme_cafe <- function(p) {
 
 # ---- PAGE D'ACCUEIL -----------------------------------------------------------
 
+# pct(x) : pourcentage de VRAI dans un vecteur logique, arrondi.
 pct <- function(x) paste0(round(100 * mean(x)), " %")
 
+# Répartition des lots par espèce, mise en phrase (ex. « Arabica (1300), Robusta (28) »).
 n_esp <- table(cafe$espece)
 txt_especes <- paste(sprintf("%s (%d)", names(n_esp), as.integer(n_esp)), collapse = ", ")
 
+# Période de récolte affichée sur l'accueil (années min et max).
 txt_periode <- if (any(!is.na(cafe$annee))) sprintf("%d à %d", min(cafe$annee, na.rm = TRUE), max(cafe$annee, na.rm = TRUE)) else "non renseignée"
 
+# CHIFFRES : liste à puces « En bref » du panneau latéral de l'accueil, calculée sur les vraies données.
 CHIFFRES <- tags$ul(
   tags$li(
     strong(format(nrow(cafe), big.mark = " ")),
@@ -761,6 +829,7 @@ CHIFFRES <- tags$ul(
   )
 )
 
+# PHRASES_CAFE : suggestions proposées dans la zone « Dites-moi ce que vous aimez » (onglet Choix de café).
 PHRASES_CAFE <- c(
   "Un café doux et sucré pour le matin",
   "Un café fruité et acidulé, à boire sans lait",
@@ -774,18 +843,20 @@ PHRASES_CAFE <- c(
   "Un café léger et délicat, pas trop corsé")
 
 # ---- AFDM : préparation ---------------------------------------------------------
+# Sans FactoMineR, l'onglet AFDM affichera un message au lieu de planter.
 FACTOMINER_OK <- requireNamespace("FactoMineR", quietly = TRUE)
 if (!FACTOMINER_OK) message("FactoMineR absent : l'onglet AFDM sera inactif (install.packages('FactoMineR')).")
 
-# regroupe les modalités rares
+# regroupe(x, n_min, autre) : remplace les modalités rares par une modalité commune.
 regroupe <- function(x, n_min, autre) {
   x <- as.character(x); n <- table(x)
   x[x %in% names(n)[n < n_min]] <- autre
   x
 }
+# LAB_AF : libellés français des variables de l'AFDM (critères, altitude, score, pays, méthode, espèce).
 LAB_AF <- c(ATTR_LAB, altitude = "Altitude", score = "Score total",
             pays = "Pays", methode = "Méthode", espece = "Espèce")
-# couleurs vives, une par pays (le gris est réservé à « Autres pays »)
+# COULEURS_POP : 24 couleurs vives et distinctes, une par pays dans le nuage de lots de l'AFDM.
 COULEURS_POP <- c("#E6194B", "#3CB44B", "#4363D8", "#F58231", "#911EB4", "#00A6C8",
                   "#F032E6", "#7CB518", "#008080", "#FF1493", "#9A6324", "#FFB000",
                   "#1F3A93", "#00C781", "#C2185B", "#6A1B9A", "#FF6F00", "#2E7D32",
@@ -793,8 +864,8 @@ COULEURS_POP <- c("#E6194B", "#3CB44B", "#4363D8", "#F58231", "#911EB4", "#00A6C
 
 # ---- 4. INTERFACE -------------------------------------------------------------
 
-# Logo : fichier du dossier www/ (nom exact ci-dessous ; à défaut, première image trouvée hors cafe.*)
-LOGO_INSTITUT <- "logo_institut.png"
+# Logo : fichier de www/ dont le nom est donné ci-dessous ; à défaut, première image de www/ autre que cafe.*.
+LOGO_INSTITUT <- "Logo_Institut_Agro_Rennes_Angers.png"
 if (!file.exists(file.path("www", LOGO_INSTITUT))) {
   autres <- list.files("www", pattern = "\\.(png|jpe?g|svg|webp)$", ignore.case = TRUE)
   autres <- autres[!grepl("^cafe\\.", autres, ignore.case = TRUE)]

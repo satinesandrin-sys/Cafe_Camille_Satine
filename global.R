@@ -749,6 +749,17 @@ pre {
   border-radius: 4px;
   margin: 14px 0;
 }
+/* Boutons Agrandir / PNG sur chaque graphique plotly */
+.js-plotly-plot { position: relative; }
+.cafe-outils { position: absolute; top: 4px; left: 6px; z-index: 20; display: flex; gap: 4px; opacity: 0.6; transition: opacity 0.2s; }
+.js-plotly-plot:hover .cafe-outils { opacity: 1; }
+.cafe-btn { background: #fbf7f1; color: #6f4e37; border: 1px solid #b9814a; border-radius: 4px; padding: 2px 9px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.cafe-btn:hover { background: #efe3d3; color: #3e2415; }
+/* Fenêtre d'agrandissement : fond blanc pour la lecture et l'export */
+.cafe-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(43, 26, 18, 0.65); z-index: 2000; display: flex; align-items: center; justify-content: center; }
+.cafe-fenetre { background: #ffffff; border-radius: 8px; width: 92vw; height: 88vh; padding: 10px 14px; display: flex; flex-direction: column; box-shadow: 0 18px 50px rgba(43, 26, 18, 0.4); }
+.cafe-entete { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 6px; }
+.cafe-zone { flex: 1; min-height: 0; width: 100%; }
  
 "
 # SVG_TASSE : illustration vectorielle (code SVG en texte) d'une tasse de café, affichée dans la fenêtre

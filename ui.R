@@ -20,7 +20,8 @@ fluidPage(
       rel = "stylesheet",
       href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=Source+Sans+3:wght@400;600&display=swap"
     ),
-    tags$style(HTML(CSS_CAFE))
+    tags$style(HTML(CSS_CAFE)),
+    tags$script(src = "cafe_graphiques.js")
   ),
   # Bandeau supérieur : logo à gauche, noms de l'équipe à droite (mise en forme par les classes CSS
     div(

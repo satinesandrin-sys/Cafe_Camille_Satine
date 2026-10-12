@@ -366,7 +366,7 @@ function(input, output, session) {
     p <- plot_ly(type = "scatterpolar", mode = "lines+markers", fill = "toself")
     for (k in seq_along(r$moy)) p <- radar_trace(p, r$moy[[k]], r$labs, names(r$moy)[k])
     layout(p, polar = list(radialaxis = list(range = r$axe)),
-           legend = list(orientation = "h")) |> theme_cafe()
+           legend = list(orientation = "h")) |> theme_cafe() |> config(displayModeBar = FALSE)
   })
   
   COUL_PAYS <- c("#6f4e37", "#c27c3c", "#7d8a5b", "#a8503f")
@@ -387,7 +387,7 @@ function(input, output, session) {
         radar_trace(r$moy[[kk]], r$labs, nom, COUL_PAYS[kk]) |>
         layout(title = list(text = nom, x = 0.5), margin = list(t = 60), showlegend = FALSE,
                polar = list(radialaxis = list(range = r$axe))) |>
-        theme_cafe()
+        theme_cafe() |> config(displayModeBar = FALSE)
     })
   })
   

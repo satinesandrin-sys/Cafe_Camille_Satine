@@ -853,6 +853,7 @@ regroupe <- function(x, n_min, autre) {
   x[x %in% names(n)[n < n_min]] <- autre
   x
 }
+
 # LAB_AF : libellés français des variables de l'AFDM (critères, altitude, score, pays, méthode, espèce).
 LAB_AF <- c(ATTR_LAB, altitude = "Altitude", score = "Score total",
             pays = "Pays", methode = "Méthode", espece = "Espèce")

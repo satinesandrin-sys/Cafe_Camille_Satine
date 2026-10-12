@@ -131,9 +131,24 @@ fluidPage(
         h4("Réglages de l'AFDM"),
         checkboxInput("af_alt", "Inclure l'altitude (réduit le nombre de lots)", TRUE),
         sliderInput("af_nmin", "Construction des axes : lots minimum par pays (sinon « Autres pays »)", 5, 40, 15),
-        sliderInput("af_naff", "Nuage de lots : afficher les pays ayant au moins N lots", 1, 20, 3),
+        # af_col : variable qualitative utilisée pour colorer les lots (et dessiner les ellipses)
+        selectInput("af_col", "Colorer les lots selon", c("Pays", "Méthode", "Espèce")),
+        # af_naff : concerne seulement le pays (les pays très rares passent en gris « Autres pays »)
+        conditionalPanel(
+          "input.af_col == 'Pays'",
+          sliderInput("af_naff", "Pays colorés : au moins N lots", 1, 20, 3)
+        ),
+        # af_ell : ellipses pour les groupes d'au moins 10 lots ; af_ell_type : ce que l'ellipse représente
+        checkboxInput("af_ell", "Afficher des ellipses (groupes d'au moins 10 lots)", FALSE),
+        conditionalPanel(
+          "input.af_ell",
+          radioButtons("af_ell_type", NULL,
+                       c("Confiance de la moyenne (95 %)" = "bary",
+                         "Dispersion des lots (95 %)" = "disp"))
+        ),        
         selectInput("af_x", "Axe horizontal", setNames(1:5, paste("Dimension", 1:5)), selected = 1),
         selectInput("af_y", "Axe vertical", setNames(1:5, paste("Dimension", 1:5)), selected = 2),
+        checkboxInput("af_ell", "Ellipses de confiance (95 %) des pays d'au moins 10 lots", FALSE),
         helpText("Le score total est une variable supplémentaire : projetée sur les axes, sans les construire.")
       ),
       
@@ -303,7 +318,7 @@ fluidPage(
                      "Deux flèches voisines vont de pair. En rouge : le score total, variable supplémentaire."),
             
             # Nuage des lots dans le plan des deux axes choisis, une couleur par pays.
-            h4("Les lots dans le plan factoriel : une couleur par pays"),
+            h4("Les lots dans le plan factoriel"),
             plotlyOutput("af_ind", height = 560),
             
             # Contribution des variables aux deux axes, côte à côte.

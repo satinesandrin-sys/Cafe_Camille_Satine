@@ -45,8 +45,7 @@ function(input, output, session) {
         image_accueil,
         h2("Choisir son café"),
         p(
-          "Parcourez la carte des cafés du monde, découvrez leurs profils de goût",
-          "et laissez le conseiller vous orienter selon vos envies."
+          "Problématique : Quels facteurs influencent la qualité d'un café? Exploration et prediction des cafés Arabica."
         )
       ),
       footer = modalButton("Découvrir"),
@@ -942,6 +941,15 @@ function(input, output, session) {
   dims <- reactive({ req(input$af_x, input$af_y); c(as.integer(input$af_x), as.integer(input$af_y)) })
   lab_dim <- function(res, k) sprintf("Dimension %d (%.1f %%)", k, res$eig[k, 2])
   
+  # La liste « Colorer les lots selon » reprend les variables qualitatives réellement utilisées.
+  observe({
+    a <- tryCatch(afdm(), error = function(e) NULL)
+    if (!is.null(a)) {
+      sel <- isolate(input$af_col)
+      updateSelectInput(session, "af_col", choices = a$quali,
+                        selected = if (!is.null(sel) && sel %in% a$quali) sel else a$quali[1])
+    }
+  })
   # Résumé affiché en haut de l'onglet : nombre de lots et variables utilisées.
   output$af_resume <- renderUI({
     a <- afdm()
@@ -990,37 +998,69 @@ function(input, output, session) {
       theme_cafe() |> config(displayModeBar = FALSE)
   })
   
-  # lots dans le plan : couleur selon le vrai pays (les pays très rares passent en gris)
+  # Lots dans le plan : colorés selon la variable qualitative choisie, avec ellipses facultatives par groupe.
   output$af_ind <- renderPlotly({
     a <- afdm(); res <- a$res; ax <- dims(); req(max(ax) <= ncol(res$ind$coord))
-    pays <- a$pays_detail
-    eff <- table(pays)
-    g <- ifelse(pays %in% names(eff)[eff >= input$af_naff], pays, "Autres pays")
-    ord <- names(sort(table(g[g != "Autres pays"]), decreasing = TRUE))
+    req(input$af_col %in% a$quali)
+    
+    # g = groupe de chaque lot.
+    #   Pays : le vrai pays (avant regroupement) ; sous af_naff lots il passe en « Autres pays » (gris).
+    #   Méthode ou Espèce : la variable telle qu'elle a été analysée (modalités rares déjà regroupées).
+    if (input$af_col == "Pays") {
+      pays <- a$pays_detail
+      eff <- table(pays)
+      g <- ifelse(pays %in% names(eff)[eff >= input$af_naff], pays, "Autres pays")
+    } else {
+      g <- as.character(a$base[[input$af_col]])
+    }
+    eff_g <- table(g)
+    # Groupes colorés, du plus au moins fourni (« Autres pays » exclu : il est toujours en gris).
+    ord <- names(sort(eff_g[names(eff_g) != "Autres pays"], decreasing = TRUE))
     n_c <- length(ord)
     pal <- if (n_c <= length(COULEURS_POP)) COULEURS_POP[seq_len(n_c)] else
       c(COULEURS_POP, grDevices::hcl.colors(n_c - length(COULEURS_POP), "Dark 3"))
-    niveaux <- c(intersect("Autres pays", g), ord)          # le gris est tracé en premier, dessous
+    niveaux <- c(intersect("Autres pays", g), ord)      # le gris est tracé en premier, dessous
     cols <- setNames(c(rep("#c9c2b8", length(niveaux) - n_c), pal), niveaux)
     df <- data.frame(x = res$ind$coord[, ax[1]], y = res$ind$coord[, ax[2]],
                      groupe = factor(g, levels = niveaux))
-    # étiquette au centre des nuages des pays d'au moins 10 lots
-    cen <- aggregate(cbind(x, y) ~ groupe, data = df, FUN = mean)
-    cen <- cen[cen$groupe %in% names(eff)[eff >= 10] & cen$groupe != "Autres pays", ]
+    
+    # Groupes d'au moins 10 lots : ils reçoivent un nom au centre de leur nuage et, si demandé, une ellipse.
+    gros <- intersect(ord, names(eff_g)[eff_g >= 10])
+    
     p <- plot_ly(df, x = ~x, y = ~y, color = ~groupe, colors = cols, type = "scatter", mode = "markers",
                  marker = list(size = 8, opacity = 0.8, line = list(color = "white", width = 0.6)),
                  hovertemplate = "%{fullData.name}<extra></extra>")
+    
+    # Ellipses à 95 % calculées par FactoMineR::coord.ellipse sur les coordonnées des lots :
+    #   « bary » = ellipse de confiance de la MOYENNE du groupe (précision du barycentre) ;
+    #   « disp » = ellipse qui décrit la DISPERSION des lots du groupe.
+    if (isTRUE(input$af_ell) && length(gros) > 0) {
+      sel <- g %in% gros
+      cd <- data.frame(groupe = factor(g[sel], levels = gros), x = df$x[sel], y = df$y[sel])
+      ell <- FactoMineR::coord.ellipse(cd, bary = identical(input$af_ell_type, "bary"),
+                                       level.conf = 0.95)$res
+      for (gg in gros) {
+        e <- ell[ell[[1]] == gg, ]
+        p <- add_trace(p, x = e[[2]], y = e[[3]], type = "scatter", mode = "lines",
+                       line = list(color = cols[[gg]], width = 2.5), showlegend = FALSE,
+                       hoverinfo = "skip", inherit = FALSE)
+      }
+    }
+    
+    # Nom du groupe au centre de son nuage (moyenne des coordonnées).
+    cen <- aggregate(cbind(x, y) ~ groupe, data = df, FUN = mean)
+    cen <- cen[cen$groupe %in% gros, ]
     if (nrow(cen) > 0)
       p <- add_trace(p, data = cen, x = ~x, y = ~y, text = ~as.character(groupe), type = "scatter",
                      mode = "text", textfont = list(size = 13, color = "#2b1a12"),
                      showlegend = FALSE, hoverinfo = "skip", inherit = FALSE)
     p |>
       layout(xaxis = list(title = lab_dim(res, ax[1])), yaxis = list(title = lab_dim(res, ax[2])),
-             legend = list(font = list(size = 11))) |>
+             legend = list(title = list(text = input$af_col), font = list(size = 11))) |>
       theme_cafe() |> config(displayModeBar = FALSE)
   })
   
-  # contributions : une barre par variable, foncée si au-dessus de la contribution moyenne
+  # Contributions à la dimension : une barre par variable, foncée si au-dessus de la contribution moyenne
   contrib_plot <- function(res, k, xmax) {
     ctr <- res$var$contrib[, k]
     df <- data.frame(v = names(ctr), c = as.numeric(ctr)); df <- df[order(df$c), ]

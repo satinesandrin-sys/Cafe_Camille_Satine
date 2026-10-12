@@ -259,6 +259,11 @@ KEY <- intersect(
   attr_cols
 )
 
+# KEY_RADAR : axes affichés par défaut dans l'onglet Profil sensoriel.
+# La douceur est exclue : elle vaut systématiquement 10/10 dans ces données,
+# donc elle ne distingue aucun pays et élargissait inutilement l'échelle du radar.
+KEY_RADAR <- setdiff(KEY, "sweetness")
+
 # phrase_gout(m, ref) : décrit en mots ce qui distingue un pays de la référence, pour le profil sensoriel.
 phrase_gout <- function(m, ref) {
   ecart <- sort(m - ref, decreasing = TRUE)

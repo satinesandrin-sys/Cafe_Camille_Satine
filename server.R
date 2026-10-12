@@ -341,7 +341,7 @@ function(input, output, session) {
   }, na = "n.d.", striped = TRUE, spacing = "xs")
   
   # ---- PROFIL SENSORIEL ------------------------------------------------------
-  cols_sens <- reactive(if (input$s_tous) attr_cols else KEY)
+  cols_sens <- reactive(if (input$s_tous) attr_cols else KEY_RADAR)
   
   # moyennes par pays, axe commun et référence : calculés une seule fois
   radar_data <- reactive({

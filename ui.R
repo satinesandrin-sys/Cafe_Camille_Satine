@@ -280,7 +280,7 @@ fluidPage(
           # s_tous : afficher les 7 critères au lieu des 4 axes principaux (sucré, acide, arôme, corps).
           checkboxInput(
             "s_tous",
-            "Afficher tous les critères (sinon : sucré, acide, arôme, corps)",
+            "Afficher tous les critères (sinon : acide, arôme, corps)",
             FALSE
           ),
           

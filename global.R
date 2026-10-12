@@ -669,11 +669,13 @@ pre {
 }
  
 .logo-institut {
-  max-height: 58px;
-  max-width: 260px;
+  max-height: 38px;
+  max-width: 170px;
   width: auto;
   height: auto;
   object-fit: contain;
+  position: relative;
+  top: 6px;
 }
  
 .noms-equipe {
